@@ -1,0 +1,76 @@
+[
+  {
+    "type": "client",
+    "name": "get_profile",
+    "description": "Read authoritative current profile, revision, confirmation and missing inputs before updating or calculating.",
+    "expects_response": true,
+    "parameters": { "type": "object", "properties": {}, "required": [] }
+  },
+  {
+    "type": "client",
+    "name": "update_profile",
+    "description": "Propose explicitly supplied facts. This invalidates confirmation. Never use this tool to confirm. Amounts are USD; income/annualSupport are annual, budget monthly, all other money one-time.",
+    "expects_response": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "description": "Latest revision from get_profile."
+        },
+        "patch": {
+          "type": "string",
+          "description": "JSON object string. Allowed keys: dependents (string), income, annualSupport, years, mortgage, debts, education, finalExpenses, otherNeeds, employerCoverage, personalCoverage, savings, budget (number or null), priorities (string). Unknown is null; explicit exclusions are 0. years must be a whole number 1-60. No other keys."
+        }
+      },
+      "required": ["expectedRevision", "patch"]
+    }
+  },
+  {
+    "type": "client",
+    "name": "calculate_needs",
+    "description": "Calculate only after the customer confirms all current inputs in the interface. Return exact structured line items and assumptions. Never substitute model arithmetic for a rejected tool call.",
+    "expects_response": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "description": "Latest revision from get_profile."
+        }
+      },
+      "required": ["expectedRevision"]
+    }
+  },
+  {
+    "type": "client",
+    "name": "explore_scenario",
+    "description": "Compare ONE assumption to the confirmed original without changing it. Provide either years OR excludeEmployer; omit both to reset to original.",
+    "expects_response": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "description": "Latest confirmed revision."
+        },
+        "years": {
+          "type": "integer",
+          "description": "Optional hypothetical support period, 1 to 60 years."
+        },
+        "excludeEmployer": {
+          "type": "boolean",
+          "description": "Optional hypothetical that employer coverage is unavailable."
+        }
+      },
+      "required": ["expectedRevision"]
+    }
+  },
+  {
+    "type": "client",
+    "name": "show_education",
+    "description": "Open the educational term/whole-life comparison and personal tradeoffs. No quotes or product purchase.",
+    "expects_response": true,
+    "parameters": { "type": "object", "properties": {}, "required": [] }
+  }
+]
