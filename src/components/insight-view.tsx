@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowLeft,
+  X,
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -71,14 +71,17 @@ export function InsightView({
       aria-labelledby="insight-title"
     >
       <header className="insight-header">
-        <button className="text-link" onClick={onClose}>
-          <ArrowLeft size={17} />
-          Back to conversation
-        </button>
-        <span>{example ? "FICTIONAL EXAMPLE" : "YOUR PERSONAL OVERVIEW"}</span>
         <button className="text-link" onClick={onEdit}>
           <Pencil size={14} />
           Edit inputs
+        </button>
+        <span>{example ? "FICTIONAL EXAMPLE" : "YOUR PERSONAL OVERVIEW"}</span>
+        <button
+          className="insight-close"
+          onClick={onClose}
+          aria-label="Close comparison"
+        >
+          <X size={18} />
         </button>
       </header>
       <div className="insight-body">

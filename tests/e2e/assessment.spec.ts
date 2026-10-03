@@ -13,6 +13,7 @@ test("homepage fits one screen with mission, offerings and clear entry points", 
   );
   await expect(page.locator(".overview-offer")).toHaveCount(4);
   await expect(page.locator(".conversation-preview")).toHaveCount(0);
+  await expect(page.getByText("Life insurance, made clearer.")).toHaveCount(0);
   expect(
     await page.evaluate(
       () =>
@@ -47,10 +48,17 @@ test("homepage also fits the user's compact desktop viewport", async ({
   ).toBe(true);
 });
 
-test("captured highlights open full-page charts and policy tradeoffs without guessing a gap", async ({
+test("captured highlights open comparison popups and policy tradeoffs without guessing a gap", async ({
   page,
 }) => {
   await page.goto("/conversation?mode=text");
+  await expect(page.locator(".sidebar-learning")).toHaveCount(0);
+  await expect(
+    page.getByText("YOUR NEXT CHAPTER, A LITTLE CLEARER"),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start fresh" })).toHaveCount(
+    0,
+  );
   const sidebar = page.locator(".situation-details");
   if (!(await sidebar.evaluate((el) => (el as HTMLDetailsElement).open)))
     await sidebar.locator("summary").click();
@@ -71,10 +79,10 @@ test("captured highlights open full-page charts and policy tradeoffs without gue
     await dialog.evaluate((el) => {
       const box = el.getBoundingClientRect();
       return (
-        box.x === 0 &&
-        box.y === 0 &&
-        Math.abs(box.width - innerWidth) < 1 &&
-        Math.abs(box.height - innerHeight) < 1
+        box.x > 0 &&
+        box.y > 0 &&
+        box.width < innerWidth &&
+        box.height < innerHeight
       );
     }),
   ).toBe(true);
@@ -83,7 +91,7 @@ test("captured highlights open full-page charts and policy tradeoffs without gue
     dialog.getByRole("heading", { name: "Whole life: what to weigh" }),
   ).toBeVisible();
   await expect(dialog.locator(".duration-diagram")).toHaveClass(/whole/);
-  await dialog.getByRole("button", { name: "Back to conversation" }).click();
+  await dialog.getByRole("button", { name: "Close comparison" }).click();
   await page
     .getByRole("button", { name: "Try an example", exact: true })
     .click();
@@ -140,9 +148,12 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
     "15 years of family support",
   );
   await expect(
-    page.getByRole("heading", { name: "Term life", exact: true }),
+    page.getByRole("heading", {
+      name: "Term life: what to weigh",
+      exact: true,
+    }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Close education" }).click();
+  await page.getByRole("button", { name: "Close comparison" }).click();
   if (!(await page.locator(".situation-details").getAttribute("open"))) {
     if (
       !(await page
@@ -168,7 +179,7 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
     ),
   ).toBe(true);
 });
-test("guided typing, monthly units, missing fields and reset", async ({
+test("guided typing, monthly units, missing fields and a fresh page session", async ({
   page,
 }) => {
   await page.goto("/conversation?mode=text");
@@ -201,9 +212,8 @@ test("guided typing, monthly units, missing fields and reset", async ({
     "whole number of years",
   );
   await page.getByRole("button", { name: "Close profile editor" }).click();
-  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
-  await page.getByRole("button", { name: "Clear & start fresh" }).click();
-  await expect(page.locator(".welcome")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".highlight-card")).toHaveCount(0);
   await expect(page.locator(".result-card")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
 });
@@ -228,7 +238,7 @@ test("missing voice configuration leaves useful guided assessment available", as
   });
   expect(badOrigin.status()).toBe(403);
   const unconfigured = await request.post("/api/conversation", {
-    headers: { origin: "http://127.0.0.1:3000" },
+    headers: { origin: new URL(page.url()).origin },
   });
   expect(unconfigured.status()).toBe(503);
 });

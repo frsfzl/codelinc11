@@ -3,30 +3,35 @@
 @import "./overview.css";
 @import "./insights.css";
 @import "./speech.css";
+@import "./chat-bubbles.css";
 @theme inline {
   --font-sans: var(--font-inter), Arial, sans-serif;
   --color-background: #fff;
   --color-foreground: #202733;
-  --color-primary: #cf693d;
+  --color-primary: var(--primary);
   --color-primary-foreground: #fff;
-  --color-secondary: #f8fafb;
+  --color-secondary: var(--soft);
   --color-secondary-foreground: #202733;
-  --color-muted: #f8fafb;
-  --color-muted-foreground: #69707b;
-  --color-border: #e7e9ed;
-  --color-ring: #cf693d;
+  --color-muted: var(--soft);
+  --color-muted-foreground: var(--muted);
+  --color-border: var(--line);
+  --color-ring: var(--primary);
   --color-destructive: #a12135;
   --radius-md: 8px;
   --radius-lg: 10px;
 }
 :root {
-  --orange: #cf693d;
-  --orange-dark: #ad4e28;
+  --primary: #76002e;
+  --primary-hover: #590023;
+  --accent: #ff4b00;
+  --pale-blue: #e5effb;
+  --orange: var(--accent);
+  --orange-dark: var(--primary);
   --ink: #202733;
-  --muted: #69707b;
-  --line: #e7e9ed;
-  --soft: #f8fafb;
-  --burgundy: #861638;
+  --muted: #637188;
+  --line: #dfe6ee;
+  --soft: #f3f7fb;
+  --burgundy: var(--primary);
 }
 * {
   box-sizing: border-box;
@@ -152,12 +157,12 @@ p {
   white-space: nowrap;
 }
 .btn-primary {
-  background: #b95730;
+  background: var(--primary);
   color: #fff;
   box-shadow: 0 3px 6px #a33b1810;
 }
 .btn-primary:hover {
-  background: var(--orange-dark);
+  background: var(--primary-hover);
   box-shadow: 0 5px 12px #a33b181c;
 }
 .btn-secondary {
@@ -236,7 +241,7 @@ p {
   display: flex;
   gap: 7px;
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   align-items: center;
 }
 .hero-visual {
@@ -292,7 +297,7 @@ p {
 }
 .mini-label {
   font-size: 8px;
-  color: #66707d;
+  color: var(--muted);
   letter-spacing: 1.3px;
 }
 .preview-body h2 {
@@ -337,13 +342,13 @@ p {
 }
 .topic-options a:hover {
   border-color: #dda68e;
-  background: #fffaf7;
+  background: var(--pale-blue);
 }
 .preview-footnote {
   display: block;
   margin-top: 19px;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.6;
 }
 .preview-bottom {
@@ -353,7 +358,7 @@ p {
   gap: 8px;
   align-items: center;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   border-top: 1px solid #f0f1f3;
 }
 .dots {
@@ -379,7 +384,7 @@ p {
   height: 28px;
   width: 28px;
   border-radius: 50%;
-  background: #fbf0e9;
+  background: var(--pale-blue);
   color: var(--orange-dark);
 }
 .floating-note strong {
@@ -408,10 +413,10 @@ p {
   align-items: center;
   gap: 11px;
   font-size: 11px;
-  color: #66707d;
+  color: var(--muted);
 }
 .principles-inner svg {
-  color: #66707d;
+  color: var(--muted);
   stroke-width: 1.4px;
 }
 .mission-section {
@@ -441,7 +446,7 @@ p {
 .mission-copy .muted {
   font-size: 13px;
   margin-top: 17px;
-  color: #66707d;
+  color: var(--muted);
 }
 .mission-copy a {
   margin-top: 20px;
@@ -451,7 +456,7 @@ p {
   color: var(--orange-dark);
 }
 .offers-section {
-  background: #f8fafb;
+  background: var(--soft);
   border-block: 1px solid #f0f2f4;
   padding-block: 68px 73px;
 }
@@ -463,7 +468,7 @@ p {
   gap: 20px;
 }
 .section-heading p {
-  color: #66707d;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.8;
   padding-bottom: 4px;
@@ -495,7 +500,7 @@ p {
   display: grid;
   place-items: center;
   border-radius: 9px;
-  background: #fcf2ed;
+  background: var(--pale-blue);
   margin-bottom: 24px;
 }
 .offer-card h3 {
@@ -506,7 +511,7 @@ p {
 }
 .offer-card p {
   font-size: 11px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.9;
   margin-top: 9px;
   margin-bottom: 24px;
@@ -531,7 +536,7 @@ p {
   padding-bottom: 77px;
 }
 .closing-icon {
-  background: #fbf1eb;
+  background: var(--pale-blue);
   color: var(--orange);
   height: 53px;
   width: 53px;
@@ -551,7 +556,7 @@ p {
 }
 .closing-note {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   display: block;
   margin-top: 17px;
 }
@@ -575,7 +580,7 @@ p {
 .footer-inner p,
 .footer-inner > span {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
 }
 .skip-link {
   position: fixed;
@@ -612,10 +617,10 @@ p {
 .assessment-title {
   font-size: 8px;
   letter-spacing: 1.8px;
-  color: #66707d;
+  color: var(--muted);
 }
 .reset-link {
-  color: #66707d;
+  color: var(--muted);
   font-size: 11px;
 }
 .assessment-layout {
@@ -658,7 +663,7 @@ p {
   gap: 9px;
 }
 .situation-details > summary > svg {
-  color: #66707d;
+  color: var(--muted);
 }
 .situation-details:not([open]) > summary {
   padding-bottom: 22px;
@@ -667,7 +672,7 @@ p {
   padding: 0 20px 21px;
 }
 .summary-intro {
-  color: #66707d;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.8;
   margin: 10px 0 22px;
@@ -676,7 +681,7 @@ p {
   display: flex;
   justify-content: space-between;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   margin-bottom: 8px;
 }
 .progress-track {
@@ -703,7 +708,7 @@ p {
   align-items: center;
   gap: 6px;
   letter-spacing: 0.7px;
-  color: #66707d;
+  color: var(--muted);
 }
 .dependents-summary p {
   font-size: 12px;
@@ -728,10 +733,10 @@ p {
   font-size: 10px;
 }
 .summary-row:hover {
-  background: #fcf6f2;
+  background: var(--pale-blue);
 }
 .summary-row > span {
-  color: #66707d;
+  color: var(--muted);
 }
 .summary-row > strong {
   font-weight: 500;
@@ -739,7 +744,7 @@ p {
   font-size: 10px;
 }
 .summary-row > strong.not-provided {
-  color: #66707d;
+  color: var(--muted);
   font-weight: 400;
   font-size: 9px;
 }
@@ -763,7 +768,7 @@ p {
 }
 .sidebar-note {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.8;
   display: flex;
   gap: 7px;
@@ -784,7 +789,7 @@ p {
 }
 .sidebar-learning > svg:last-child {
   margin-left: auto;
-  color: #66707d;
+  color: var(--muted);
 }
 .sidebar-learning span {
   font-size: 11px;
@@ -793,7 +798,7 @@ p {
 .sidebar-learning small {
   font-size: 9px;
   display: block;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 5px;
   font-weight: 400;
 }
@@ -830,7 +835,7 @@ p {
 }
 .chat-header div > span:not(.avatar) {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -847,9 +852,10 @@ p {
 }
 .sample-link {
   font-size: 10px;
-  color: #8a6654;
+  color: #df4100;
 }
 .chat-transcript {
+  background: var(--pale-blue);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -880,7 +886,7 @@ p {
   height: 52px;
   width: 52px;
   border-radius: 50%;
-  background: #f9edf0;
+  background: #fff;
   color: var(--burgundy);
   display: grid;
   place-items: center;
@@ -899,7 +905,7 @@ p {
   justify-content: space-between;
   align-items: center;
   font-size: 7px;
-  color: #66707d;
+  color: var(--muted);
   letter-spacing: 0.9px;
   margin-bottom: 10px;
   min-height: 12px;
@@ -922,7 +928,7 @@ p {
   padding: 7px;
 }
 .composer:focus-within {
-  border-color: #dda389;
+  border-color: #b98ca3;
 }
 .composer input {
   width: 100%;
@@ -935,7 +941,7 @@ p {
   height: 31px;
 }
 .composer input::placeholder {
-  color: #66707d;
+  color: var(--muted);
   font-size: 11px;
 }
 .mic-button,
@@ -946,7 +952,7 @@ p {
   height: 33px;
   border: 0;
   background: transparent;
-  color: #66707d;
+  color: var(--muted);
   border-radius: 5px;
   flex-shrink: 0;
 }
@@ -959,7 +965,7 @@ p {
 }
 .send-button {
   color: white;
-  background: #b95730;
+  background: var(--primary);
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -967,7 +973,7 @@ p {
 }
 .composer-footnote {
   font-size: 8px;
-  color: #66707d;
+  color: var(--muted);
   display: flex;
   gap: 4px;
   justify-content: center;
@@ -1016,14 +1022,14 @@ p {
 .live-controls button {
   border: 0;
   background: transparent;
-  color: #66707d;
+  color: var(--muted);
   font-size: 10px;
 }
 .session-label {
   text-align: center;
   font-size: 8px;
   letter-spacing: 1.3px;
-  color: #66707d;
+  color: var(--muted);
   margin-bottom: 24px;
 }
 .message {
@@ -1078,13 +1084,13 @@ p {
 }
 .review-action > span {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
 }
 .review-action .btn {
   font-size: 11px;
 }
 .example-badge {
-  background: #f9f0e8;
+  background: var(--pale-blue);
   color: #855537;
   font-size: 8px;
   padding: 6px 8px;
@@ -1135,7 +1141,7 @@ dialog::backdrop {
   padding: 25px 29px 28px;
 }
 .form-intro {
-  color: #66707d;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.8;
   margin-bottom: 24px;
@@ -1151,7 +1157,7 @@ dialog::backdrop {
 }
 .form-field small {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.7;
 }
 .form-field input,
@@ -1165,7 +1171,7 @@ dialog::backdrop {
 }
 .form-field input::placeholder,
 .form-field textarea::placeholder {
-  color: #66707d;
+  color: var(--muted);
 }
 .form-field textarea {
   resize: vertical;
@@ -1180,11 +1186,11 @@ dialog::backdrop {
   background: #fff;
 }
 .number-input:focus-within {
-  outline: 2px solid #cf693d;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .number-input > span {
-  color: #66707d;
+  color: var(--muted);
   font-size: 9px;
   white-space: nowrap;
 }
@@ -1220,13 +1226,13 @@ legend {
   color: var(--orange-dark);
 }
 .optional-label {
-  color: #66707d;
+  color: var(--muted);
   font-size: 9px;
   font-weight: 400;
   margin-left: 4px;
 }
 .review-note {
-  background: #f8fafb;
+  background: var(--soft);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 14px;
@@ -1239,7 +1245,7 @@ legend {
 }
 .review-note p {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.8;
 }
 .form-error {
@@ -1261,7 +1267,7 @@ legend {
 }
 .dialog-footer > span {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
 }
 .dialog-footer > div {
   display: flex;
@@ -1272,11 +1278,11 @@ legend {
   padding-inline: 13px;
 }
 .result-card {
-  border: 1px solid #e9d6ca;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 25px;
   margin-block: 22px 8px;
-  background: #fffcfa;
+  background: #fff;
 }
 .result-heading {
   display: flex;
@@ -1284,14 +1290,14 @@ legend {
   gap: 7px;
   font-size: 8px;
   letter-spacing: 1px;
-  color: #66707d;
+  color: var(--muted);
 }
 .result-check {
   height: 25px;
   width: 25px;
   display: grid;
   place-items: center;
-  background: #f8e9dd;
+  background: var(--pale-blue);
   border-radius: 50%;
   color: var(--orange-dark);
 }
@@ -1311,12 +1317,12 @@ legend {
 }
 .result-amount-label {
   font-size: 11px;
-  color: #7f685a;
+  color: var(--muted);
 }
 .result-card > p {
   font-size: 11px;
   line-height: 1.9;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 17px;
 }
 .math-equation {
@@ -1334,14 +1340,14 @@ legend {
 }
 .math-equation div > span {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
 }
 .math-equation strong {
   font-size: 16px;
   font-weight: 550;
 }
 .math-equation > span {
-  color: #66707d;
+  color: var(--muted);
 }
 .math-details {
   border: 1px solid var(--line);
@@ -1363,7 +1369,7 @@ legend {
   gap: 9px;
 }
 .math-details summary svg {
-  color: #66707d;
+  color: var(--muted);
 }
 .math-content {
   border-top: 1px solid var(--line);
@@ -1373,7 +1379,7 @@ legend {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.7px;
-  color: #66707d;
+  color: var(--muted);
   margin: 9px 0 14px;
 }
 .math-row {
@@ -1382,7 +1388,7 @@ legend {
   gap: 14px;
   font-size: 11px;
   padding: 9px 0;
-  color: #66707d;
+  color: var(--muted);
 }
 .math-row strong {
   font-weight: 500;
@@ -1391,7 +1397,7 @@ legend {
 .math-row small {
   display: block;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 5px;
 }
 .math-total {
@@ -1406,12 +1412,12 @@ legend {
 }
 .math-floor {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   margin-bottom: 15px;
 }
 .assumptions {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.8;
   padding-top: 12px;
   border-top: 1px solid var(--line);
@@ -1435,11 +1441,11 @@ legend {
   font-weight: 550;
 }
 .scenario-section h3 svg {
-  color: #66707d;
+  color: var(--muted);
 }
 .scenario-section > p {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.8;
   margin-top: 9px;
 }
@@ -1455,18 +1461,18 @@ legend {
   background: white;
   padding: 8px 9px;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
 }
 .scenario-tabs button.selected {
-  border-color: #dca98f;
-  color: #a45c37;
-  background: #fdf5ee;
+  border-color: #b98ca3;
+  color: var(--primary);
+  background: var(--pale-blue);
 }
 .range-label {
   display: block;
   margin-top: 17px;
   font-size: 11px;
-  color: #66707d;
+  color: var(--muted);
 }
 .range-label strong {
   color: #414e5c;
@@ -1480,7 +1486,7 @@ legend {
 }
 .scenario-result {
   border-radius: 7px;
-  background: #f8fafb;
+  background: var(--soft);
   padding: 15px;
   margin-top: 16px;
 }
@@ -1498,7 +1504,7 @@ legend {
 }
 .scenario-result p {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 9px;
   line-height: 1.8;
 }
@@ -1523,7 +1529,7 @@ legend {
 }
 .result-card > p.estimate-note {
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 18px;
 }
 .education-grid {
@@ -1546,7 +1552,7 @@ legend {
 }
 .policy-label {
   font-size: 10px;
-  color: #66707d;
+  color: var(--muted);
 }
 .education-grid ul {
   list-style: disc;
@@ -1558,12 +1564,12 @@ legend {
   padding-left: 3px;
   font-size: 11px;
   line-height: 1.9;
-  color: #66707d;
+  color: var(--muted);
   margin-top: 9px;
 }
 .personal-context {
-  background: #fcf6f1;
-  border: 1px solid #f1e3d8;
+  background: var(--pale-blue);
+  border: 1px solid var(--line);
   border-radius: 9px;
   padding: 22px;
   margin-top: 22px;
@@ -1574,7 +1580,7 @@ legend {
 }
 .personal-context p {
   font-size: 11px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.9;
   margin-top: 11px;
 }
@@ -1588,13 +1594,13 @@ legend {
 .learning-sources > span {
   font-size: 8px;
   letter-spacing: 1px;
-  color: #66707d;
+  color: var(--muted);
 }
 .learning-sources a {
   display: flex;
   gap: 4px;
   align-items: center;
-  color: #856450;
+  color: var(--primary);
   font-size: 10px;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -1611,7 +1617,7 @@ legend {
 }
 .reset-dialog p {
   font-size: 12px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.9;
   margin-block: 16px 24px;
 }
@@ -2012,5 +2018,68 @@ legend {
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Lincoln identity across the overview, conversation, and dialogs. */
+.brand-logo {
+  width: 154px;
+  height: auto;
+  display: block;
+}
+.overview-page {
+  background: linear-gradient(180deg, #fff 0%, var(--pale-blue) 100%);
+}
+.overview-header {
+  background: #fff;
+  width: 100%;
+}
+.overview-intro h1 {
+  color: var(--primary);
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  letter-spacing: -1.3px;
+}
+.overview-intro h1 span {
+  color: var(--primary);
+  font-weight: 400;
+}
+.overview-offer {
+  background: #fff;
+}
+.overview-offer > svg,
+.situation-details summary > span > svg,
+.highlight-label > svg {
+  color: var(--accent);
+}
+.composer {
+  background: #fff;
+}
+.insight-heading h1,
+.modal h2 {
+  color: var(--primary);
+}
+.insight-view {
+  background: var(--soft);
+}
+.message.assistant .message-bubble {
+  background: #fff;
+}
+.conversation-content .review-action {
+  margin-left: 0;
+}
+.text-link {
+  color: var(--primary);
+}
+.btn-primary,
+.send-button {
+  box-shadow: 0 3px 8px #76002e12;
+}
+.send-button:hover {
+  background: var(--primary-hover);
+}
+@media (max-width: 760px) {
+  .brand-logo {
+    width: 132px;
   }
 }

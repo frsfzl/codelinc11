@@ -177,8 +177,11 @@ test("recording stops at one minute and opening a dialog releases the microphone
   expect(requests).toBe(1);
   await page.getByRole("button", { name: "Dictate a message" }).click();
   await expect(page.getByRole("status")).toContainText("Recording");
-  await page.getByRole("button", { name: "Start fresh", exact: true }).click();
-  await page.getByRole("button", { name: "Keep my progress" }).click();
+  const details = page.locator(".situation-details");
+  if (!(await details.evaluate((el) => (el as HTMLDetailsElement).open)))
+    await details.locator("summary").click();
+  await page.getByRole("button", { name: "Edit inputs", exact: true }).click();
+  await page.getByRole("button", { name: "Close profile editor" }).click();
   await expect(page.locator(".dictation-status")).toHaveCount(0);
   expect(requests).toBe(1);
   expect(

@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  color: #66707d;
+  color: var(--muted);
   font-size: 11px;
   padding: 2px 0 14px;
 }
@@ -15,7 +15,7 @@
 .dictation-status button {
   border: 0;
   background: none;
-  color: #a44e2a;
+  color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -35,7 +35,7 @@
   cursor: default;
 }
 .dictation-hint {
-  color: #66707d;
+  color: var(--muted);
   font-size: 10px;
   padding-top: 9px;
   text-align: center;

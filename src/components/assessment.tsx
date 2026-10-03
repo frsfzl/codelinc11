@@ -1,17 +1,15 @@
 "use client";
-import dynamic from "next/dynamic";
+import LiveConversation from "./live-conversation";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   ArrowUp,
   AudioLines,
-  BookOpen,
   ChevronDown,
   Info,
   LoaderCircle,
   Mic,
-  RotateCcw,
   ShieldCheck,
   Sprout,
   Square,
@@ -22,7 +20,6 @@ import { Brand } from "./brand";
 import { Button } from "./ui/button";
 import { CoverageResult } from "./coverage-result";
 import { ProfileEditor } from "./profile-editor";
-import { Education } from "./education";
 import { KeyHighlights } from "./key-highlights";
 import { InsightView } from "./insight-view";
 import { useDictation } from "./use-dictation";
@@ -44,9 +41,6 @@ import {
 } from "@/lib/needs";
 import { nextQuestion, parseAmount, questionFor } from "@/lib/guided";
 
-const LiveConversation = dynamic(() => import("./live-conversation"), {
-  ssr: false,
-});
 type Message = { id: number; role: "user" | "assistant"; text: string };
 const intentLabels: Record<string, string> = {
   everyday: "Everyday expenses",
@@ -73,7 +67,7 @@ export function Assessment({
   }));
   const current = useRef(state);
   const [messages, setMessages] = useState<Message[]>(() =>
-    params.get("mode") === "text"
+    params.get("mode") === "text" && !liveEnabled
       ? [{ id: 0, role: "assistant", text: questionFor("dependents") }]
       : [],
   );
@@ -90,18 +84,18 @@ export function Assessment({
   const [editor, setEditor] = useState<"edit" | "review" | null>(null);
   const editing = useRef(false);
   editing.current = editor !== null;
-  const [education, setEducation] = useState(params.get("learn") === "true");
-  const [insight, setInsight] = useState<HighlightKey | null>(null);
+  const [insight, setInsight] = useState<HighlightKey | null>(
+    params.get("learn") === "true" ? "support" : null,
+  );
   const [example, setExample] = useState(false);
   const [skippedIncome, setSkippedIncome] = useState(false);
   const [status, setStatus] = useState<LiveStatus>("disconnected");
   const [error, setError] = useState("");
   const [liveMode, setLiveMode] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
   const cancelDictation = dictation.cancel;
   useEffect(() => {
-    if (editor || education || insight || resetOpen) cancelDictation();
-  }, [editor, education, insight, resetOpen, cancelDictation]);
+    if (editor || insight) cancelDictation();
+  }, [editor, insight, cancelDictation]);
   const [activeScenario, setActiveScenario] = useState<Scenario>({});
   const live = useRef<LiveHandle>(null);
   const transcript = useRef<HTMLDivElement>(null);
@@ -199,10 +193,18 @@ export function Assessment({
             "Explain only the changed assumption. The original profile is unchanged.",
         };
       }),
-      show_education: () => {
-        setEducation(true);
-        return "Term and whole life comparison is open. Explain the differences without recommending a specific policy or inventing prices.";
-      },
+      show_education: guarded((args) => {
+        const { focus } = z
+          .object({
+            focus: z
+              .enum(["people", "support", "goals", "resources", "estimate"])
+              .optional(),
+          })
+          .strict()
+          .parse(args);
+        setInsight(focus ?? "support");
+        return "Comparison popup is open with charts, a policy toggle, and tradeoffs. Explain the choices without inventing prices.";
+      }),
     };
   }, []);
   const context = JSON.stringify({
@@ -227,7 +229,7 @@ export function Assessment({
   }
   function guidedAnswer(text: string) {
     if (/^(term|whole life|learn|compare)/i.test(text)) {
-      setEducation(true);
+      setInsight("support");
       addMessage(
         "assistant",
         "Let’s look at how term and whole life work. Your coverage amount and policy type are separate decisions.",
@@ -291,12 +293,16 @@ export function Assessment({
       `${value}\n\n${questionFor(nextQuestion(next.profile, skippedIncome))}`,
     );
   }
-  function send() {
+  async function send() {
     const text = draft.trim();
     if (!text || status === "connecting" || dictation.busy) return;
+    if (liveEnabled && !liveActive && !example) {
+      const connected = await startLive(false);
+      if (!connected) return;
+    }
     setDraft("");
     addMessage("user", text);
-    if (liveActive) live.current?.send(text);
+    if ((liveActive || liveEnabled) && !example) live.current?.send(text);
     else guidedAnswer(text);
   }
   function loadExample() {
@@ -319,47 +325,30 @@ export function Assessment({
       },
     ]);
   }
-  function reset() {
-    dictation.cancel();
-    live.current?.stop();
-    setLiveMode(false);
-    setExample(false);
-    setSkippedIncome(false);
-    setError("");
-    setDraft("");
-    setMessages([]);
-    setResetOpen(false);
-    setInsight(null);
-    update({
-      profile: { ...emptyProfile },
-      revision: current.current.revision + 1,
-      confirmedRevision: null,
-    });
-  }
-  function startLive(voice: boolean) {
+  async function startLive(voice: boolean) {
     dictation.cancel();
     if (!liveEnabled) {
       setError(
         "Live conversation isn’t connected in this preview. You can type answers to the guided questions, edit your inputs, or try the fictional example.",
       );
-      return;
+      return false;
     }
     if (!live.current) {
       setError(
         "Live chat is getting ready. Please try connecting again in a moment.",
       );
-      return;
+      return false;
     }
     setError("");
     setLiveMode(true);
-    void live.current?.start(voice);
+    return live.current.start(voice);
   }
   function stopLive() {
     live.current?.stop();
     setLiveMode(false);
     addMessage(
       "assistant",
-      `Live conversation ended. You can keep going in guided mode. ${questionFor(question)}`,
+      "Conversation paused. You can keep typing or start voice again whenever you’re ready.",
     );
   }
 
@@ -368,16 +357,6 @@ export function Assessment({
       <header className="site-header">
         <div className="assessment-nav">
           <Brand />
-          <div className="assessment-title">
-            YOUR NEXT CHAPTER, A LITTLE CLEARER
-          </div>
-          <button
-            className="text-link reset-link"
-            onClick={() => setResetOpen(true)}
-          >
-            <RotateCcw size={14} />
-            Start fresh
-          </button>
         </div>
       </header>
       <main id="main" className="assessment-layout">
@@ -392,6 +371,7 @@ export function Assessment({
             <KeyHighlights
               state={state}
               example={example}
+              processing={status === "thinking"}
               onOpen={(key) => {
                 dictation.cancel();
                 setInsight(key);
@@ -402,16 +382,6 @@ export function Assessment({
               }}
             />
           </details>
-          <button
-            className="sidebar-learning"
-            onClick={() => setEducation(true)}
-          >
-            <BookOpen size={17} />
-            <span>
-              Term vs. whole life<small>Understand the differences</small>
-            </span>
-            <ArrowRight size={15} />
-          </button>
         </aside>
         <section className="chat-panel" aria-labelledby="chat-title">
           <div className="chat-header">
@@ -420,14 +390,16 @@ export function Assessment({
                 <Sprout size={19} />
               </span>
               <div>
-                <h1 id="chat-title">A conversation with Steady</h1>
+                <h1 id="chat-title">A conversation with Linc</h1>
                 <span>
                   <i
                     className={liveActive ? "status-dot active" : "status-dot"}
                   />
                   {liveActive
                     ? `Live ${status === "connected" ? "text conversation" : status}`
-                    : "Guided mode · one step at a time"}
+                    : liveEnabled && !example
+                      ? "Ready when you are"
+                      : "Guided mode · one step at a time"}
                 </span>
               </div>
             </div>
@@ -447,6 +419,7 @@ export function Assessment({
                   </div>
                   <Button
                     className="btn btn-primary"
+                    disabled={liveActive || dictation.busy}
                     onClick={() => startLive(true)}
                   >
                     <Mic size={17} />
@@ -458,8 +431,8 @@ export function Assessment({
                   <div className="session-label">
                     {example
                       ? "FICTIONAL EXAMPLE"
-                      : liveActive
-                        ? "LIVE CONVERSATION"
+                      : liveEnabled && !example
+                        ? "CHAT WITH STEADY"
                         : "GUIDED QUESTIONS · NOT LIVE AI"}
                   </div>
                   <div
@@ -473,22 +446,21 @@ export function Assessment({
                         key={message.id}
                         className={`message ${message.role}`}
                       >
-                        <div className="message-avatar">
-                          {message.role === "assistant" ? (
-                            <Sprout size={16} />
-                          ) : (
-                            "You"
-                          )}
-                        </div>
-                        <div>
-                          <span className="message-name">
-                            {message.role === "assistant" ? "Steady" : "You"}
+                        <div className="message-bubble">
+                          <span className="sr-only">
+                            {message.role === "assistant" ? "Linc: " : "You: "}
                           </span>
                           <p>{message.text}</p>
                         </div>
                       </div>
                     ))}
                   </div>
+                  {status === "thinking" && (
+                    <div className="assistant-working">
+                      <LoaderCircle size={14} className="spin" />
+                      Linc is thinking…
+                    </div>
+                  )}
                   {!isConfirmed && (
                     <div className="review-action">
                       <button
@@ -514,7 +486,7 @@ export function Assessment({
                   key={state.revision}
                   profile={state.profile}
                   example={example}
-                  onLearn={() => setEducation(true)}
+                  onLearn={() => setInsight("support")}
                   onScenario={setActiveScenario}
                   externalScenario={activeScenario}
                 />
@@ -582,7 +554,7 @@ export function Assessment({
                     : status === "thinking"
                       ? "Thinking it through…"
                       : status === "speaking"
-                        ? "Steady is speaking"
+                        ? "Linc is speaking"
                         : "Ready when you are"}
                 </span>
                 <button onClick={stopLive}>
@@ -618,7 +590,7 @@ export function Assessment({
                 value={draft}
                 maxLength={1000}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Message Steady…"
+                placeholder="Message Linc…"
                 disabled={status === "connecting" || dictation.busy}
               />
               <button
@@ -698,15 +670,6 @@ export function Assessment({
           onClose={() => setEditor(null)}
         />
       )}
-      {education && (
-        <Education
-          profile={state.profile}
-          onClose={() => setEducation(false)}
-        />
-      )}
-      {resetOpen && (
-        <ResetDialog onCancel={() => setResetOpen(false)} onReset={reset} />
-      )}
       {liveEnabled && (
         <LiveConversation
           ref={live}
@@ -717,40 +680,5 @@ export function Assessment({
         />
       )}
     </div>
-  );
-}
-function ResetDialog({
-  onCancel,
-  onReset,
-}: {
-  onCancel: () => void;
-  onReset: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      onCancel={onCancel}
-      className="reset-dialog"
-      aria-labelledby="reset-title"
-    >
-      <h2 id="reset-title">A fresh start?</h2>
-      <p>
-        This clears the conversation and the numbers in this page, and ends any
-        live session. It does not delete any records held by the conversation
-        provider.
-      </p>
-      <div>
-        <button className="btn btn-secondary" onClick={onCancel}>
-          Keep my progress
-        </button>
-        <button className="btn btn-primary" onClick={onReset}>
-          Clear & start fresh
-        </button>
-      </div>
-    </dialog>
   );
 }

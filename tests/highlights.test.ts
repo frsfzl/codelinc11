@@ -1,7 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { capturedBreakdown, getHighlights } from "../src/lib/highlights";
+import {
+  capturedBreakdown,
+  getHighlights,
+  conciseDetail,
+} from "../src/lib/highlights";
 import { emptyProfile, exampleProfile } from "../src/lib/needs";
+
+test("older verbatim people entries display one sentence without unrelated finances", () => {
+  assert.equal(
+    conciseDetail("My wife and two kids. I earn $80,000 a year."),
+    "My wife and two kids.",
+  );
+  assert.equal(
+    conciseDetail("Wife and two children, ages 3 and 7."),
+    "Wife and two children, ages 3 and 7.",
+  );
+});
 
 test("highlights contain captured facts only and never guess missing amounts", () => {
   const state = {

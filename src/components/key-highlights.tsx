@@ -1,6 +1,6 @@
 "use client";
 import {
-  ArrowUpRight,
+  LoaderCircle,
   ChartNoAxesCombined,
   HeartHandshake,
   House,
@@ -24,16 +24,25 @@ export function KeyHighlights({
   example,
   onOpen,
   onEdit,
+  processing = false,
 }: {
   state: ProfileState;
   example: boolean;
   onOpen: (key: HighlightKey) => void;
   onEdit: () => void;
+  processing?: boolean;
 }) {
   const highlights = getHighlights(state);
   return (
-    <div className="key-highlights">
-      <p className="highlights-caption">The important pieces, as we talk.</p>
+    <div className="key-highlights" aria-busy={processing}>
+      {processing ? (
+        <p className="highlights-caption highlights-loading" role="status">
+          <LoaderCircle size={14} className="spin" />
+          Updating key details…
+        </p>
+      ) : (
+        <p className="highlights-caption">The important pieces, as we talk.</p>
+      )}
       {example && <span className="example-badge">FICTIONAL EXAMPLE</span>}
       {highlights.length ? (
         <div className="highlight-list">
@@ -49,7 +58,6 @@ export function KeyHighlights({
                 <div className="highlight-top">
                   <Icon size={16} />
                   <span>{item.title}</span>
-                  <ArrowUpRight size={14} />
                 </div>
                 <strong>{item.value}</strong>
                 <small>{item.detail}</small>

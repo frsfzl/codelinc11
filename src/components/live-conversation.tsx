@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { ClientTools } from "@elevenlabs/react";
 
 export interface LiveHandle {
-  start: (voice: boolean) => Promise<void>;
+  start: (voice: boolean) => Promise<boolean>;
   stop: () => void;
   send: (text: string) => void;
 }
@@ -32,6 +32,12 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
   const contextRef = useRef(context);
   const typedMessages = useRef<string[]>([]);
   const connectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectionWaiter = useRef<((ready: boolean) => void) | null>(null);
+  function finishConnection(ready: boolean) {
+    const resolve = connectionWaiter.current;
+    connectionWaiter.current = null;
+    resolve?.(ready);
+  }
   function clearConnectionTimer() {
     if (connectionTimer.current) clearTimeout(connectionTimer.current);
     connectionTimer.current = null;
@@ -41,16 +47,19 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
     onConnect: () => {
       clearConnectionTimer();
       connected.current = true;
+      finishConnection(true);
       onStatus(voice.current ? "listening" : "connected");
     },
     onDisconnect: () => {
       clearConnectionTimer();
       connected.current = false;
+      finishConnection(false);
       onStatus("disconnected");
     },
     onError: () => {
       clearConnectionTimer();
       connected.current = false;
+      finishConnection(false);
       onStatus(
         "error",
         "The live connection was interrupted. You can reconnect, or continue with the guided questions and your saved inputs.",
@@ -69,7 +78,13 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
         }
       }
       onMessage(event.source === "user" ? "user" : "assistant", event.message);
-      onStatus(voice.current ? "listening" : "connected");
+      onStatus(
+        event.source === "user"
+          ? "thinking"
+          : voice.current
+            ? "listening"
+            : "connected",
+      );
     },
   });
   contextRef.current = context;
@@ -83,6 +98,7 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
     () => () => {
       generation.current += 1;
       clearConnectionTimer();
+      finishConnection(false);
     },
     [],
   );
@@ -92,6 +108,7 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
       async start(useVoice) {
         const request = ++generation.current;
         clearConnectionTimer();
+        finishConnection(false);
         typedMessages.current = [];
         voice.current = useVoice;
         onStatus("connecting");
@@ -102,7 +119,7 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
             });
             stream.getTracks().forEach((track) => track.stop());
           }
-          if (request !== generation.current) return;
+          if (request !== generation.current) return false;
           const response = await fetch("/api/conversation", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -110,24 +127,41 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
           });
           if (!response.ok) throw new Error("Unable to connect");
           const data = await response.json();
-          if (request !== generation.current) return;
+          if (request !== generation.current) return false;
           connectionTimer.current = setTimeout(() => {
             if (request !== generation.current || connected.current) return;
             generation.current += 1;
+            finishConnection(false);
             sdk.endSession();
             onStatus(
               "error",
               "The connection took too long. Try connecting again or continue with guided questions.",
             );
           }, 20000);
+          const profile = JSON.parse(contextRef.current).profile;
+          const ready = new Promise<boolean>((resolve) => {
+            connectionWaiter.current = resolve;
+          });
           sdk.startSession({
             signedUrl: data.signedUrl,
             connectionType: "websocket",
             textOnly: !useVoice,
-            dynamicVariables: { profile_context: contextRef.current },
+            dynamicVariables: {
+              profile_context: contextRef.current,
+              opening_message: profile?.dependents
+                ? "Welcome back. We can pick up from the details you’ve shared. What would you like to explore next?"
+                : "Hi, I’m Linc. Who are you thinking about protecting, or what would you like life insurance to help with?",
+            },
           });
+          const didConnect = await ready;
+          if (request !== generation.current) {
+            sdk.endSession();
+            return false;
+          }
+          return didConnect;
         } catch {
           clearConnectionTimer();
+          finishConnection(false);
           if (request === generation.current)
             onStatus(
               "error",
@@ -135,10 +169,12 @@ const Session = forwardRef<LiveHandle, Props>(function Session(
                 ? "Voice couldn’t connect. Check microphone permission, or choose live text or guided questions."
                 : "Live chat couldn’t connect. Try again or continue with guided questions.",
             );
+          return false;
         }
       },
       stop() {
         clearConnectionTimer();
+        finishConnection(false);
         generation.current += 1;
         sdk.endSession();
         connected.current = false;

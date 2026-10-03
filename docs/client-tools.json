@@ -69,8 +69,18 @@
   {
     "type": "client",
     "name": "show_education",
-    "description": "Open the educational term/whole-life comparison and personal tradeoffs. No quotes or product purchase.",
+    "description": "Open a comparison popup for a key detail with charts, term/whole-life toggle and tradeoffs. No quotes or product purchase.",
     "expects_response": true,
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "focus": {
+          "type": "string",
+          "enum": ["people", "support", "goals", "resources", "estimate"],
+          "description": "The relevant captured highlight to explore. Defaults to support."
+        }
+      },
+      "required": []
+    }
   }
 ]

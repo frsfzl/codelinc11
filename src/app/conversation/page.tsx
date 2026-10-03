@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Assessment } from "@/components/assessment";
 import { speechConfigured } from "@/lib/transcription";
+import { agentConfigured } from "@/lib/agent-session";
 export const dynamic = "force-dynamic";
 export default function ConversationPage() {
   return (
@@ -13,9 +14,7 @@ export default function ConversationPage() {
     >
       <Assessment
         speechEnabled={speechConfigured()}
-        liveEnabled={Boolean(
-          process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_AGENT_ID,
-        )}
+        liveEnabled={agentConfigured()}
       />
     </Suspense>
   );

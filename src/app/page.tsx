@@ -40,7 +40,6 @@ export default function Home() {
     <div className="overview-page">
       <header className="overview-header">
         <Brand />
-        <span>Life insurance, made clearer.</span>
       </header>
       <main id="main" className="overview-main">
         <section className="overview-intro">

@@ -1,0 +1,79 @@
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+.messages .message {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  width: 100%;
+}
+.messages .message.assistant {
+  justify-content: flex-start;
+}
+.messages .message.user {
+  justify-content: flex-end;
+  margin-left: 0;
+}
+.message-bubble {
+  position: relative;
+  max-width: min(80%, 620px);
+  padding: 12px 17px;
+  border-radius: 21px;
+  background: #f0f1f3;
+}
+.message.assistant .message-bubble {
+  border-bottom-left-radius: 6px;
+}
+.message.user .message-bubble {
+  background: var(--primary);
+  border-bottom-right-radius: 6px;
+}
+.messages .message p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #303843;
+}
+.messages .message.user p {
+  color: #fff;
+}
+.messages .message-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 11px;
+  height: 14px;
+  background: inherit;
+}
+.message.assistant .message-bubble::after {
+  left: -5px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.message.user .message-bubble::after {
+  right: -5px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+.review-action {
+  margin-left: 0;
+}
+.assistant-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 17px;
+}
+@media (max-width: 760px) {
+  .message-bubble {
+    max-width: 88%;
+    padding: 11px 14px;
+  }
+  .messages .message p {
+    font-size: 12px;
+  }
+}

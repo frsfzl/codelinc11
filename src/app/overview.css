@@ -7,7 +7,7 @@
 .overview-header {
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 19px 32px;
+  padding: 9px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -15,7 +15,7 @@
 }
 .overview-header > span {
   font-size: 11px;
-  color: #69707b;
+  color: var(--muted);
 }
 .overview-main {
   width: min(1060px, 100%);
@@ -40,7 +40,7 @@
   margin-top: 18px;
 }
 .overview-intro h1 span {
-  color: #69707b;
+  color: var(--muted);
   font-weight: 450;
 }
 .overview-mission {
@@ -56,7 +56,7 @@
   margin-bottom: 10px;
 }
 .overview-mission p {
-  color: #66707d;
+  color: var(--muted);
   font-size: 14px;
   line-height: 1.75;
 }
@@ -74,7 +74,7 @@
   flex-direction: column;
   gap: 17px;
   padding: 23px 19px;
-  border: 1px solid #e7e9ed;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: #fcfdfe;
   transition:
@@ -82,11 +82,11 @@
     background 0.15s;
 }
 .overview-offer:hover {
-  border-color: #dca98f;
-  background: #fffaf7;
+  border-color: #b98ca3;
+  background: var(--pale-blue);
 }
 .overview-offer > svg {
-  color: #b95730;
+  color: var(--primary);
 }
 .overview-offer h3 {
   font-size: 12px;
@@ -96,7 +96,7 @@
 }
 .overview-offer p {
   font-size: 11px;
-  color: #66707d;
+  color: var(--muted);
   line-height: 1.75;
 }
 .overview-actions {
@@ -114,7 +114,7 @@
 .overview-footer {
   text-align: center;
   font-size: 9px;
-  color: #66707d;
+  color: var(--muted);
   padding: 15px 24px 19px;
 }
 @media (max-width: 900px) {
@@ -141,7 +141,7 @@
 }
 @media (max-width: 520px) {
   .overview-header {
-    padding: 17px 20px;
+    padding: 7px 20px;
   }
   .overview-header > span {
     font-size: 9px;

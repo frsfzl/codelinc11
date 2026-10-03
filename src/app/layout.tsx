@@ -7,7 +7,7 @@ const inter = Inter({
   display: "swap",
 });
 export const metadata: Metadata = {
-  title: "Steady — A little clarity. A lot of care.",
+  title: "Linc — A little clarity. A lot of care.",
   description:
     "Explore your life insurance needs through a thoughtful conversation and math you can follow.",
 };

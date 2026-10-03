@@ -1,6 +1,6 @@
-# Steady · CodeLinc 11
+# Linc · CodeLinc 11
 
-A conversational life-insurance needs planner with a calm white-and-burnt-orange interface, editable customer inputs, and transparent coverage math. Built on the `shivaa` branch. No AWS resources have been created or deployed.
+A conversational life-insurance needs planner with a Lincoln Financial logo and a white, pale-blue, burgundy and orange interface, editable customer inputs, and transparent coverage math. Built on the `shivaa` branch. No AWS resources have been created or deployed.
 
 ## Run locally
 
@@ -20,13 +20,13 @@ npm run build
 npm run test:e2e   # Desktop + mobile customer flows; requires Chrome
 ```
 
-The browser tests use a local server and a fresh browser context. Dictation tests substitute a microphone and intercept transcription requests, so they never record your microphone or incur provider usage. The test server enables the speech UI with a dummy CLI path. If reusing an existing server, configure speech-to-text on that server; leave the live agent unconfigured for the fallback tests. On a machine without Chrome, install Chrome or change the Playwright configuration to an installed Chromium browser. To test a production build, run `npm run build`, then `npm start`, then the browser tests against that server.
+The browser tests run against an isolated production server on port 3001 with the live agent disabled. Run `npm run build` before `npm run test:e2e`. Microphone and transcription requests are substituted, so the suite does not record your microphone or incur provider usage. Tests were not run for the latest UI and agent changes at the user's request.
 
 ## Customer experience
 
 - **Homepage:** a concise, single-screen mission and four offerings with clear calls to begin. Fits desktop, the 847 × 765 compact browser, and phone viewports without hiding overflowing content.
 - **Assessment:** a quiet chat surface and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
-- **Full-page insights:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
+- **Comparison popups:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
 - **Dictation:** the composer microphone records up to 60 seconds, transcribes with ElevenLabs Scribe v2, and appends the text to your editable draft. Nothing sends automatically.
 - **Review:** unknown values remain blank, zero means an explicit exclusion, and final calculation requires the customer's confirmation.
 - **Explainable result:** total needs, resources already in place, additional coverage, line items and assumptions.
@@ -42,7 +42,7 @@ The small microphone beside the message field is independent of the full voice c
 
 For normal hosting, set `ELEVENLABS_API_KEY` in the server-only `.env.local` and set `APP_ORIGIN` to the exact browser origin, then restart the server. No agent ID is needed for dictation. The Node endpoint `/api/transcribe` sends multipart audio to ElevenLabs using `model_id=scribe_v2`; no credentials reach the browser. Uploads are limited to 5 MiB, provider calls time out, and same-origin checks plus a small process-local request/concurrency limit guard this local demo.
 
-For local development with an already authenticated ElevenLabs CLI, an optional bridge is supported:
+For local development with an already authenticated ElevenLabs CLI, a bridge supports both dictation and agent session signing:
 
 ```dotenv
 APP_ORIGIN=http://127.0.0.1:3000
@@ -54,17 +54,19 @@ On Windows use the actual `elevenlabs.exe`, not the npm `.cmd` or PowerShell shi
 
 The app does not persist audio or transcripts. ElevenLabs processes the recording under the account's provider retention settings; this integration does not request enterprise-only zero-retention mode. Canceling an already submitted request does not delete provider records. See the [official speech-to-text API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).
 
-## Optional live voice and text
+## Live voice and text
 
 1. Create a private ElevenLabs Agent. Use `docs/agent-prompt.md` as its system prompt and register the five client tools in `docs/client-tools.json`. Tool names and types must match exactly. Enable **Wait for response** for each client tool.
-2. Configure the `profile_context` dynamic variable with a default of `{}`. Enable text-only conversations so the same agent supports typing without microphone access. Choose a voice/model in the ElevenLabs dashboard; no voice ID or model is hard-coded in this repo.
+2. Configure the `profile_context` dynamic variable with a default of `{}` and `opening_message` with a greeting introducing Linc. Enable text-only conversations so the same agent supports typing without microphone access. Choose a voice/model in the ElevenLabs dashboard; no voice ID or model is hard-coded in this repo.
 3. Restrict the agent's allowed origins to your development origin. Configure provider retention and recording settings appropriate to the demo before using real information.
-4. Copy `.env.example` to `.env.local`, set `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID`, and set `APP_ORIGIN` to the exact URL origin you open. Restart the server. Do not put secrets in `NEXT_PUBLIC_` variables or commit `.env.local`.
-5. Select **Connect live text** or **Start voice conversation**. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
+4. Copy `.env.example` to `.env.local`, set `ELEVENLABS_AGENT_ID` and either the server-only `ELEVENLABS_API_KEY` or the local authenticated CLI settings above, and set `APP_ORIGIN` to the exact URL origin you open. Restart the server. Do not put secrets in `NEXT_PUBLIC_` variables or commit `.env.local`.
+5. Type and send a message to connect automatically, or select **Connect live text** or **Start voice conversation**. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
 
 The integration uses `@elevenlabs/react` 1.16 with `ConversationProvider`. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer form edits cannot be overwritten by stale requests. An open profile editor blocks agent writes. Confirmation can only happen in the interface, not through an agent tool. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
 
-Full live conversation still requires a configured agent and credentials and must be acceptance-tested after setup. This repository does not create an agent or demonstrate that a full conversational agent session has succeeded. Speech-to-text has been separately verified against the real provider; automated tests cover dictation UI states, guided mode, math, charts, and API validation. Provider processing/retention is separate from the app's in-memory state; clearing this page does not delete provider records.
+The private **Linc — CodeLinc 11** agent is configured in ElevenLabs with five client tools, the Bella voice, GPT-4.1 mini, sequential tool calls, text/voice support, and localhost access restrictions. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Voice recording is disabled in the agent settings and conversation retention is seven days.
+
+An initial live-chat check exposed a startup issue before any provider conversation began; the adapter loading was corrected. Further live sessions and automated tests were skipped at the user's request, so end-to-end live agent behavior remains unverified. Speech-to-text was separately verified against the real provider before these changes. Provider processing/retention is separate from the app's in-memory state; refreshing this page does not delete provider records.
 
 Official integration references: [React SDK](https://elevenlabs.io/docs/eleven-agents/libraries/react), [client tools](https://elevenlabs.io/docs/eleven-agents/customization/tools/client-tools).
 
@@ -94,12 +96,12 @@ src/app/api/conversation/route.ts    Server-only session signing
 src/app/api/transcribe/route.ts      Bounded speech-to-text endpoint
 src/components/assessment.tsx        In-memory flow and validated client tools
 src/components/key-highlights.tsx    Captured facts only
-src/components/insight-view.tsx      Full-page charts and policy exploration
+src/components/insight-view.tsx      Popup charts and policy exploration
 src/components/use-dictation.ts      Recording, cancellation and transcript review
 src/components/profile-editor.tsx    Editable, confirmable profile
 src/components/coverage-result.tsx   Explanation and independent scenarios
 src/components/education.tsx         Term/whole-life education
-src/components/live-conversation.tsx ElevenLabs adapter, loaded on configured builds
+src/components/live-conversation.tsx ElevenLabs voice and text adapter
 src/lib/needs.ts                     Single deterministic calculation boundary
 src/lib/guided.ts                    Explicitly non-AI fallback intake
 src/lib/transcription.ts             Scribe API and opt-in local CLI adapter

@@ -1,12 +1,16 @@
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import Image from "next/image";
 export function Brand() {
   return (
-    <Link className="brand" href="/" aria-label="Steady home">
-      <span className="brand-symbol">
-        <Sprout size={21} strokeWidth={1.8} />
-      </span>
-      steady<span className="brand-period">.</span>
+    <Link className="brand" href="/" aria-label="Lincoln Financial home">
+      <Image
+        className="brand-logo"
+        src="/brand/lincoln-financial.png"
+        alt="Lincoln Financial"
+        width={256}
+        height={118}
+        priority
+      />
     </Link>
   );
 }

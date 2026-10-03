@@ -66,7 +66,7 @@ export function getHighlights(state: ProfileState): Highlight[] {
     highlights.push({
       key: "people",
       title: "People & priorities",
-      value: p.dependents || p.priorities,
+      value: conciseDetail(p.dependents || p.priorities),
       detail:
         p.dependents && p.priorities ? p.priorities : "What matters to you",
     });
@@ -121,4 +121,18 @@ export function getHighlights(state: ProfileState): Highlight[] {
       detail: "Estimated additional coverage",
     });
   return highlights;
+}
+
+// Live agents supply a concise summary. This keeps older/guided verbatim entries
+// compact without inventing new facts; the original stays in the detail popup.
+export function conciseDetail(text: string) {
+  const sentence = text
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)[0];
+  if (sentence.length <= 110) return sentence;
+  return `${sentence
+    .slice(0, 107)
+    .replace(/\s+\S*$/, "")
+    .replace(/[.,;:!?]+$/, "")}…`;
 }
