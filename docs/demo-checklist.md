@@ -4,7 +4,7 @@
 
 1. Open the homepage. Show the mission, four offerings and conversation entry points.
 2. Open the conversation. Point out the Key details panel and the Linc assistant.
-3. Choose **Try an example**, then **Review my numbers**. Explain annual support versus salary, the support period, one-time balances, and resources.
+3. Type a fictional family description, then choose **Review & fill in my numbers**. Enter the illustrative values from the README, including explicit zeros for excluded needs. Explain annual support versus salary, the support period, one-time balances, and resources.
 4. Confirm the fictional inputs. Show $900,000 needs minus $200,000 resources = $700,000 estimated additional coverage. Expand/read the line items and assumptions.
 5. Change the support period to 10 years: $500,000. Then choose “Without employer coverage”: $850,000 relative to the original 15-year profile. Explain why the scenarios do not compound.
 6. Click a captured key detail to open the comparison popup and toggle term versus whole life. Connect the 15-year support goal to time-bound protection while discussing lifelong needs and affordability as separate considerations.

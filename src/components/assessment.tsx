@@ -31,7 +31,6 @@ import {
   confirmedEstimate,
   currency,
   emptyProfile,
-  exampleProfile,
   fieldInfo,
   missingFields,
   scenarioSchema,
@@ -87,7 +86,7 @@ export function Assessment({
   const [insight, setInsight] = useState<HighlightKey | null>(
     params.get("learn") === "true" ? "support" : null,
   );
-  const [example, setExample] = useState(false);
+  const example = false;
   const [skippedIncome, setSkippedIncome] = useState(false);
   const [status, setStatus] = useState<LiveStatus>("disconnected");
   const [error, setError] = useState("");
@@ -305,31 +304,11 @@ export function Assessment({
     if ((liveActive || liveEnabled) && !example) live.current?.send(text);
     else guidedAnswer(text);
   }
-  function loadExample() {
-    dictation.cancel();
-    live.current?.stop();
-    setLiveMode(false);
-    setExample(true);
-    setError("");
-    setSkippedIncome(false);
-    update({
-      profile: { ...exampleProfile },
-      revision: current.current.revision + 1,
-      confirmedRevision: null,
-    });
-    setMessages([
-      {
-        id: ++sequence.current,
-        role: "assistant",
-        text: "Let’s walk through a fictional family: a partner and two children, ages 3 and 7. They want $40,000 a year for 15 years, a $220,000 mortgage paid off, and $80,000 for education. They have $150,000 in employer coverage and $50,000 in allocated savings. Other items are explicitly set to zero.\n\nReview these example numbers, then see how they fit together.",
-      },
-    ]);
-  }
   async function startLive(voice: boolean) {
     dictation.cancel();
     if (!liveEnabled) {
       setError(
-        "Live conversation isn’t connected in this preview. You can type answers to the guided questions, edit your inputs, or try the fictional example.",
+        "Live conversation isn’t connected in this preview. You can type answers to the guided questions, or review your inputs.",
       );
       return false;
     }
@@ -376,37 +355,13 @@ export function Assessment({
                 dictation.cancel();
                 setInsight(key);
               }}
-              onEdit={() => {
-                dictation.cancel();
-                setEditor("edit");
-              }}
             />
           </details>
         </aside>
         <section className="chat-panel" aria-labelledby="chat-title">
-          <div className="chat-header">
-            <div>
-              <span className="avatar small-avatar">
-                <Sprout size={19} />
-              </span>
-              <div>
-                <h1 id="chat-title">A conversation with Linc</h1>
-                <span>
-                  <i
-                    className={liveActive ? "status-dot active" : "status-dot"}
-                  />
-                  {liveActive
-                    ? `Live ${status === "connected" ? "text conversation" : status}`
-                    : liveEnabled && !example
-                      ? "Ready when you are"
-                      : "Guided mode · one step at a time"}
-                </span>
-              </div>
-            </div>
-            <button className="text-link sample-link" onClick={loadExample}>
-              Try an example <ArrowRight size={14} />
-            </button>
-          </div>
+          <h1 id="chat-title" className="sr-only">
+            Conversation with Linc
+          </h1>
           <div
             className={`chat-transcript${messages.length === 0 ? " chat-transcript--empty" : ""}`}
             ref={transcript}
@@ -432,7 +387,7 @@ export function Assessment({
                     {example
                       ? "FICTIONAL EXAMPLE"
                       : liveEnabled && !example
-                        ? "CHAT WITH STEADY"
+                        ? "CHAT WITH LINC"
                         : "GUIDED QUESTIONS · NOT LIVE AI"}
                   </div>
                   <div

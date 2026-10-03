@@ -2048,12 +2048,19 @@ legend {
   background: #fff;
 }
 .overview-offer > svg,
-.situation-details summary > span > svg,
 .highlight-label > svg {
   color: var(--accent);
 }
+.situation-details summary > span > svg {
+  color: var(--primary);
+}
+.composer-area {
+  background: var(--pale-blue);
+  border-top: 0;
+}
 .composer {
-  background: #fff;
+  background: #eef5fd;
+  border-color: #cddced;
 }
 .insight-heading h1,
 .modal h2 {

@@ -167,7 +167,7 @@ test("recording stops at one minute and opening a dialog releases the microphone
     requests++;
     return route.fulfill({ json: { text: "A short answer" } });
   });
-  await page.goto("/conversation");
+  await page.goto("/conversation?mode=text");
   await page.getByRole("button", { name: "Dictate a message" }).click();
   await expect(page.getByRole("status")).toContainText("Recording");
   await page.clock.fastForward(60_000);
@@ -177,10 +177,9 @@ test("recording stops at one minute and opening a dialog releases the microphone
   expect(requests).toBe(1);
   await page.getByRole("button", { name: "Dictate a message" }).click();
   await expect(page.getByRole("status")).toContainText("Recording");
-  const details = page.locator(".situation-details");
-  if (!(await details.evaluate((el) => (el as HTMLDetailsElement).open)))
-    await details.locator("summary").click();
-  await page.getByRole("button", { name: "Edit inputs", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Review & fill in my numbers" })
+    .click();
   await page.getByRole("button", { name: "Close profile editor" }).click();
   await expect(page.locator(".dictation-status")).toHaveCount(0);
   expect(requests).toBe(1);

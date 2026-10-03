@@ -1,4 +1,24 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { exampleProfile } from "../../src/lib/needs";
+
+async function openSampleNumbers(page: Page) {
+  await page
+    .getByRole("textbox", { name: "Your message", exact: true })
+    .fill("Compare term and whole life");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Edit inputs", exact: true })
+    .click();
+  await page
+    .getByLabel("Who are you thinking about?")
+    .fill(exampleProfile.dependents);
+  for (const [key, value] of Object.entries(exampleProfile)) {
+    if (typeof value === "number")
+      await page.locator("#field-" + key).fill(String(value));
+  }
+}
+
 test("homepage fits one screen with mission, offerings and clear entry points", async ({
   page,
 }) => {
@@ -92,12 +112,7 @@ test("captured highlights open comparison popups and policy tradeoffs without gu
   ).toBeVisible();
   await expect(dialog.locator(".duration-diagram")).toHaveClass(/whole/);
   await dialog.getByRole("button", { name: "Close comparison" }).click();
-  await page
-    .getByRole("button", { name: "Try an example", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Review my numbers", exact: true })
-    .click();
+  await openSampleNumbers(page);
   await page.getByRole("button", { name: "Confirm & see estimate" }).click();
   await page
     .getByRole("button", { name: "Explore your coverage picture" })
@@ -120,12 +135,7 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
   page,
 }) => {
   await page.goto("/conversation");
-  await page
-    .getByRole("button", { name: "Try an example", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Review my numbers", exact: true })
-    .click();
+  await openSampleNumbers(page);
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.locator("#field-annualSupport")).toHaveValue("40000");
   await page.getByRole("button", { name: "Confirm & see estimate" }).click();
@@ -153,16 +163,10 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Close comparison" }).click();
-  if (!(await page.locator(".situation-details").getAttribute("open"))) {
-    if (
-      !(await page
-        .getByRole("button", { name: "Edit inputs", exact: true })
-        .isVisible())
-    )
-      await page.locator(".situation-details > summary").click();
-  }
-  await page.getByRole("button", { name: "Edit inputs", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Edit inputs", exact: true })
+    .click();
   await page.locator("#field-years").fill("10");
   await page
     .getByRole("button", { name: "Save for later", exact: true })

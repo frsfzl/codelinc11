@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. The entire guided assessment, fictional walkthrough, calculator, scenario comparison and policy education work without credentials. Refreshing the page clears the in-memory profile and conversation.
+Open http://127.0.0.1:3000. The guided assessment, calculator, scenario comparison and policy education work without credentials. Refreshing the page clears the in-memory profile and conversation.
 
 ```sh
 npm test           # Deterministic math, validation, guided units, stale revisions
@@ -25,7 +25,7 @@ The browser tests run against an isolated production server on port 3001 with th
 ## Customer experience
 
 - **Homepage:** a concise, single-screen mission and four offerings with clear calls to begin. Fits desktop, the 847 × 765 compact browser, and phone viewports without hiding overflowing content.
-- **Assessment:** a quiet chat surface and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
+- **Assessment:** a pale-blue chat surface with a matching composer and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
 - **Comparison popups:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
 - **Dictation:** the composer microphone records up to 60 seconds, transcribes with ElevenLabs Scribe v2, and appends the text to your editable draft. Nothing sends automatically.
 - **Review:** unknown values remain blank, zero means an explicit exclusion, and final calculation requires the customer's confirmation.
@@ -34,7 +34,7 @@ The browser tests run against an isolated production server on port 3001 with th
 - **Education:** term versus whole life, time-bound versus lifelong needs, affordability context, and links to consumer education.
 - **Accessibility:** native modal focus management and Escape behavior, labeled inputs, keyboard controls, visible focus, transcript announcements, responsive layout and reduced-motion support.
 
-The “Try an example” flow is explicitly fictional. Guided mode uses deterministic questions and a limited amount parser; it is **not presented as live AI**. It accepts numbers such as `40k`, `40,000/year`, or `3,000 per month` for annual support/income. More open-ended understanding is handled by the optional live agent.
+Guided mode uses deterministic questions and a limited amount parser; it is **not presented as live AI**. It accepts numbers such as `40k`, `40,000/year`, or `3,000 per month` for annual support/income. More open-ended understanding is handled by the optional live agent.
 
 ## ElevenLabs speech-to-text
 

@@ -5,7 +5,6 @@ import {
   HeartHandshake,
   House,
   Landmark,
-  Pencil,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -23,25 +22,21 @@ export function KeyHighlights({
   state,
   example,
   onOpen,
-  onEdit,
   processing = false,
 }: {
   state: ProfileState;
   example: boolean;
   onOpen: (key: HighlightKey) => void;
-  onEdit: () => void;
   processing?: boolean;
 }) {
   const highlights = getHighlights(state);
   return (
     <div className="key-highlights" aria-busy={processing}>
-      {processing ? (
+      {processing && (
         <p className="highlights-caption highlights-loading" role="status">
           <LoaderCircle size={14} className="spin" />
           Updating key details…
         </p>
-      ) : (
-        <p className="highlights-caption">The important pieces, as we talk.</p>
       )}
       {example && <span className="example-badge">FICTIONAL EXAMPLE</span>}
       {highlights.length ? (
@@ -71,10 +66,6 @@ export function KeyHighlights({
           <p>Key details will appear here as you share them.</p>
         </div>
       )}
-      <button className="highlight-edit" onClick={onEdit}>
-        <Pencil size={13} />
-        Edit inputs
-      </button>
     </div>
   );
 }
