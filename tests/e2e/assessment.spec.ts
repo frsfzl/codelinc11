@@ -17,9 +17,7 @@ test("homepage sections, topic intent, and narrow layouts", async ({
   ).toBe(true);
   await page.getByRole("link", { name: "A mortgage", exact: true }).click();
   await expect(page).toHaveURL(/intent=mortgage/);
-  await expect(page.locator(".welcome")).toContainText(
-    "We’ll start with a mortgage",
-  );
+  await expect(page.locator(".priority-summary")).toContainText("A mortgage");
   await expect(page.locator(".result-card")).toHaveCount(0);
   expect(errors).toEqual([]);
   expect(
@@ -139,9 +137,7 @@ test("missing voice configuration leaves useful guided assessment available", as
   await expect(page.locator(".connection-error")).toContainText(
     "Live conversation isn’t connected",
   );
-  await page
-    .getByRole("button", { name: "I prefer to type", exact: true })
-    .click();
+  await page.getByRole("textbox", { name: "Your message" }).click();
   await expect(
     page.getByRole("textbox", { name: "Your message" }),
   ).toBeFocused();

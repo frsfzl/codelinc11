@@ -12,7 +12,6 @@ import {
   HeartHandshake,
   Info,
   LoaderCircle,
-  MessageCircle,
   Mic,
   Pencil,
   RotateCcw,
@@ -495,71 +494,23 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
               Try an example <ArrowRight size={14} />
             </button>
           </div>
-          <div className="chat-transcript" ref={transcript}>
+          <div
+            className={`chat-transcript${messages.length === 0 ? " chat-transcript--empty" : ""}`}
+            ref={transcript}
+          >
             <div className="conversation-content">
               {messages.length === 0 ? (
                 <div className="welcome">
-                  <div className="welcome-emblem">
-                    <Sprout size={35} strokeWidth={1.5} />
+                  <div className="welcome-emblem" aria-hidden="true">
+                    <Sprout size={28} strokeWidth={1.5} />
                   </div>
-                  <div className="eyebrow">
-                    LET’S MAKE ROOM FOR WHAT MATTERS
-                  </div>
-                  <h2>
-                    A little clarity starts
-                    <br />
-                    with your story.
-                  </h2>
-                  <p>
-                    {initialIntent
-                      ? `We’ll start with ${initialIntent.toLowerCase()}. `
-                      : "You don’t need to have all the answers. "}
-                    We’ll work through your family’s needs together, at a pace
-                    that feels right.
-                  </p>
-                  <div className="welcome-question">
-                    {questionFor("dependents")}
-                  </div>
-                  <div className="welcome-actions">
-                    <Button
-                      className="btn btn-primary"
-                      onClick={() => startLive(true)}
-                    >
-                      <Mic size={17} />
-                      Start voice conversation
-                    </Button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => {
-                        addMessage("assistant", questionFor(question));
-                        document.getElementById("message-input")?.focus();
-                      }}
-                    >
-                      <MessageCircle size={17} />I prefer to type
-                    </button>
-                  </div>
-                  {liveEnabled ? (
-                    <p className="connection-note">
-                      Live text and voice are processed by ElevenLabs. Use only
-                      information you’re comfortable sharing.
-                    </p>
-                  ) : (
-                    <p className="connection-note">
-                      <Info size={14} />
-                      Live AI isn’t connected yet. Guided questions and the full
-                      calculator are ready to explore.
-                    </p>
-                  )}
-                  <div className="welcome-divider">
-                    <span>or take a look around</span>
-                  </div>
-                  <button className="example-prompt" onClick={loadExample}>
-                    <span>
-                      <Users size={18} />
-                      Walk through a fictional family’s story
-                    </span>
-                    <ArrowRight size={16} />
-                  </button>
+                  <Button
+                    className="btn btn-primary"
+                    onClick={() => startLive(true)}
+                  >
+                    <Mic size={17} />
+                    Start voice conversation
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -690,11 +641,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                 value={draft}
                 maxLength={1000}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder={
-                  liveActive
-                    ? "Type a message…"
-                    : "Type your answer, or ask about term vs. whole life…"
-                }
+                placeholder="Message Steady…"
                 disabled={status === "connecting"}
               />
               <button
