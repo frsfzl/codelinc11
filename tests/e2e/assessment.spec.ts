@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-test("homepage sections, topic intent, and narrow layouts", async ({
+test("homepage fits one screen with mission, offerings and clear entry points", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -8,16 +8,23 @@ test("homepage sections, topic intent, and narrow layouts", async ({
   await expect(
     page.getByRole("heading", { name: /Protect what matters/ }),
   ).toBeVisible();
-  await expect(page.locator("#mission")).toContainText("Big decisions deserve");
-  await expect(page.locator(".offer-card")).toHaveCount(4);
+  await expect(page.locator("#mission")).toContainText(
+    "Make life insurance easier",
+  );
+  await expect(page.locator(".overview-offer")).toHaveCount(4);
+  await expect(page.locator(".conversation-preview")).toHaveCount(0);
   expect(
     await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
+      () =>
+        document.documentElement.scrollWidth <= window.innerWidth &&
+        document.documentElement.scrollHeight <= window.innerHeight,
     ),
   ).toBe(true);
-  await page.getByRole("link", { name: "A mortgage", exact: true }).click();
-  await expect(page).toHaveURL(/intent=mortgage/);
-  await expect(page.locator(".priority-summary")).toContainText("A mortgage");
+  await page
+    .getByRole("link", { name: "I prefer to type", exact: true })
+    .click();
+  await expect(page).toHaveURL(/mode=text/);
+  await expect(page.getByRole("log")).toContainText("Who would you want");
   await expect(page.locator(".result-card")).toHaveCount(0);
   expect(errors).toEqual([]);
   expect(
@@ -25,6 +32,81 @@ test("homepage sections, topic intent, and narrow layouts", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+test("homepage also fits the user's compact desktop viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 847, height: 765 });
+  await page.goto("/");
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollHeight <= innerHeight &&
+        document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("captured highlights open full-page charts and policy tradeoffs without guessing a gap", async ({
+  page,
+}) => {
+  await page.goto("/conversation?mode=text");
+  const sidebar = page.locator(".situation-details");
+  if (!(await sidebar.evaluate((el) => (el as HTMLDetailsElement).open)))
+    await sidebar.locator("summary").click();
+  await expect(page.locator(".highlight-card")).toHaveCount(0);
+  await expect(sidebar).not.toContainText("Not provided");
+  await page
+    .getByRole("textbox", { name: "Your message", exact: true })
+    .fill("My partner");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(page.locator(".highlight-card")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Explore people & priorities" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("My partner");
+  await expect(dialog.locator(".insight-metrics")).toHaveCount(0);
+  expect(
+    await dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return (
+        box.x === 0 &&
+        box.y === 0 &&
+        Math.abs(box.width - innerWidth) < 1 &&
+        Math.abs(box.height - innerHeight) < 1
+      );
+    }),
+  ).toBe(true);
+  await dialog.getByRole("button", { name: "Whole life", exact: true }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Whole life: what to weigh" }),
+  ).toBeVisible();
+  await expect(dialog.locator(".duration-diagram")).toHaveClass(/whole/);
+  await dialog.getByRole("button", { name: "Back to conversation" }).click();
+  await page
+    .getByRole("button", { name: "Try an example", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Review my numbers", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
+  await page
+    .getByRole("button", { name: "Explore your coverage picture" })
+    .click();
+  await expect(dialog.locator(".metric-emphasis strong")).toHaveText(
+    "$700,000",
+  );
+  await expect(dialog.locator(".amount-chart.needs")).toContainText("$600,000");
+  await expect(dialog.locator(".amount-chart.needs")).toContainText(
+    "$40,000 a year × 15 years",
+  );
+  await dialog.getByRole("button", { name: "Whole life", exact: true }).click();
+  await expect(dialog.locator(".metric-emphasis strong")).toHaveText(
+    "$700,000",
+  );
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });
 test("fictional example confirms inputs, explains math, and keeps scenarios independent", async ({
   page,

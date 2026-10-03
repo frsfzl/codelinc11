@@ -1,0 +1,42 @@
+.dictation-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #66707d;
+  font-size: 11px;
+  padding: 2px 0 14px;
+}
+.dictation-status > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dictation-status button {
+  border: 0;
+  background: none;
+  color: #a44e2a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.recording-dot {
+  height: 7px;
+  width: 7px;
+  border-radius: 50%;
+  background: #ac2442;
+}
+.composer .mic-button.is-recording {
+  background: #f8e9ed;
+  color: #941739;
+  border-radius: 50%;
+}
+.composer .mic-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.dictation-hint {
+  color: #66707d;
+  font-size: 10px;
+  padding-top: 9px;
+  text-align: center;
+}

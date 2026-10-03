@@ -7,13 +7,10 @@ import {
   ArrowUp,
   AudioLines,
   BookOpen,
-  Check,
   ChevronDown,
-  HeartHandshake,
   Info,
   LoaderCircle,
   Mic,
-  Pencil,
   RotateCcw,
   ShieldCheck,
   Sprout,
@@ -26,6 +23,10 @@ import { Button } from "./ui/button";
 import { CoverageResult } from "./coverage-result";
 import { ProfileEditor } from "./profile-editor";
 import { Education } from "./education";
+import { KeyHighlights } from "./key-highlights";
+import { InsightView } from "./insight-view";
+import { useDictation } from "./use-dictation";
+import type { HighlightKey } from "@/lib/highlights";
 import type { LiveHandle, LiveStatus } from "./live-conversation";
 import {
   applyProfilePatch,
@@ -36,9 +37,7 @@ import {
   exampleProfile,
   fieldInfo,
   missingFields,
-  requiredKeys,
   scenarioSchema,
-  type NumericKey,
   type Profile,
   type ProfileState,
   type Scenario,
@@ -58,7 +57,13 @@ const stateSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
 });
 
-export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
+export function Assessment({
+  liveEnabled,
+  speechEnabled,
+}: {
+  liveEnabled: boolean;
+  speechEnabled: boolean;
+}) {
   const params = useSearchParams();
   const initialIntent = intentLabels[params.get("intent") ?? ""] ?? "";
   const [state, setState] = useState<ProfileState>(() => ({
@@ -74,16 +79,29 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   );
   const sequence = useRef(0);
   const [draft, setDraft] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const dictation = useDictation(speechEnabled, (text) => {
+    const next = [draft.trim(), text].filter(Boolean).join(" ");
+    if (next.length > 1000)
+      return "That message is a little long. Try recording a shorter answer; your existing draft is unchanged.";
+    setDraft(next);
+    requestAnimationFrame(() => input.current?.focus());
+  });
   const [editor, setEditor] = useState<"edit" | "review" | null>(null);
   const editing = useRef(false);
   editing.current = editor !== null;
   const [education, setEducation] = useState(params.get("learn") === "true");
+  const [insight, setInsight] = useState<HighlightKey | null>(null);
   const [example, setExample] = useState(false);
   const [skippedIncome, setSkippedIncome] = useState(false);
   const [status, setStatus] = useState<LiveStatus>("disconnected");
   const [error, setError] = useState("");
   const [liveMode, setLiveMode] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const cancelDictation = dictation.cancel;
+  useEffect(() => {
+    if (editor || education || insight || resetOpen) cancelDictation();
+  }, [editor, education, insight, resetOpen, cancelDictation]);
   const [activeScenario, setActiveScenario] = useState<Scenario>({});
   const live = useRef<LiveHandle>(null);
   const transcript = useRef<HTMLDivElement>(null);
@@ -91,7 +109,6 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   const liveActive = liveMode && !["disconnected", "error"].includes(status);
   const isConfirmed = state.confirmedRevision === state.revision;
   const missing = missingFields(state.profile);
-  const completed = requiredKeys.length - missing.length;
   const question = nextQuestion(state.profile, skippedIncome);
   useEffect(() => {
     if (window.matchMedia("(max-width: 760px)").matches && situation.current)
@@ -276,13 +293,14 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   }
   function send() {
     const text = draft.trim();
-    if (!text || status === "connecting") return;
+    if (!text || status === "connecting" || dictation.busy) return;
     setDraft("");
     addMessage("user", text);
     if (liveActive) live.current?.send(text);
     else guidedAnswer(text);
   }
   function loadExample() {
+    dictation.cancel();
     live.current?.stop();
     setLiveMode(false);
     setExample(true);
@@ -302,6 +320,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     ]);
   }
   function reset() {
+    dictation.cancel();
     live.current?.stop();
     setLiveMode(false);
     setExample(false);
@@ -310,6 +329,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     setDraft("");
     setMessages([]);
     setResetOpen(false);
+    setInsight(null);
     update({
       profile: { ...emptyProfile },
       revision: current.current.revision + 1,
@@ -317,6 +337,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     });
   }
   function startLive(voice: boolean) {
+    dictation.cancel();
     if (!liveEnabled) {
       setError(
         "Live conversation isn’t connected in this preview. You can type answers to the guided questions, edit your inputs, or try the fictional example.",
@@ -342,20 +363,6 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     );
   }
 
-  const summaryRows: { label: string; key: NumericKey }[] = [
-    { label: "Annual income", key: "income" },
-    { label: "Family support / year", key: "annualSupport" },
-    { label: "Support period", key: "years" },
-    { label: "Mortgage", key: "mortgage" },
-    { label: "Other debts", key: "debts" },
-    { label: "Education goals", key: "education" },
-    { label: "Final expenses", key: "finalExpenses" },
-    { label: "Other goals", key: "otherNeeds" },
-    { label: "Employer coverage", key: "employerCoverage" },
-    { label: "Personal coverage", key: "personalCoverage" },
-    { label: "Allocated savings", key: "savings" },
-    { label: "Monthly budget", key: "budget" },
-  ];
   return (
     <div className="assessment-page">
       <header className="site-header">
@@ -378,88 +385,22 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           <details className="situation-details" open ref={situation}>
             <summary>
               <span>
-                <Users size={17} /> Your situation
+                <Users size={17} /> Key details
               </span>
               <ChevronDown size={16} />
             </summary>
-            <div className="situation-body">
-              <div className="summary-intro">
-                The pieces of your picture.
-                <br />
-                You can change these anytime.
-              </div>
-              {example && (
-                <div className="example-badge">FICTIONAL EXAMPLE</div>
-              )}
-              <div className="progress-label">
-                <span>
-                  {completed} of {requiredKeys.length} estimate inputs
-                </span>
-                <span>
-                  {isConfirmed ? (
-                    <Check size={14} />
-                  ) : (
-                    `${Math.round((completed / requiredKeys.length) * 100)}%`
-                  )}
-                </span>
-              </div>
-              <div className="progress-track">
-                <span
-                  style={{
-                    width: `${(completed / requiredKeys.length) * 100}%`,
-                  }}
-                />
-              </div>
-              <div className="dependents-summary">
-                <span>
-                  <HeartHandshake size={15} /> WHO MATTERS TO YOU
-                </span>
-                <p>
-                  {state.profile.dependents || "Let’s start with your story."}
-                </p>
-              </div>
-              <div className="summary-rows">
-                {summaryRows.map((row) => (
-                  <button
-                    key={row.key}
-                    onClick={() => setEditor("edit")}
-                    className="summary-row"
-                  >
-                    <span>{row.label}</span>
-                    <strong
-                      className={
-                        state.profile[row.key] === null ? "not-provided" : ""
-                      }
-                    >
-                      {state.profile[row.key] === null
-                        ? "Not provided"
-                        : row.key === "years"
-                          ? `${state.profile[row.key]} years`
-                          : currency(state.profile[row.key]!)}
-                    </strong>
-                  </button>
-                ))}
-              </div>
-              {state.profile.priorities && (
-                <div className="priority-summary">
-                  <span>WHAT MATTERS MOST</span>
-                  <p>{state.profile.priorities}</p>
-                </div>
-              )}
-              <button
-                className="btn btn-secondary edit-inputs"
-                onClick={() => setEditor("edit")}
-              >
-                <Pencil size={14} />
-                Edit inputs
-              </button>
-              <p className="sidebar-note">
-                <ShieldCheck size={14} />
-                {liveEnabled
-                  ? "This app keeps inputs in this page only. Live chats are processed by ElevenLabs."
-                  : "Your inputs stay in this page’s session. Refreshing clears them."}
-              </p>
-            </div>
+            <KeyHighlights
+              state={state}
+              example={example}
+              onOpen={(key) => {
+                dictation.cancel();
+                setInsight(key);
+              }}
+              onEdit={() => {
+                dictation.cancel();
+                setEditor("edit");
+              }}
+            />
           </details>
           <button
             className="sidebar-learning"
@@ -581,6 +522,41 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
             </div>
           </div>
           <div className="composer-area">
+            {dictation.error && (
+              <div className="connection-error" role="alert">
+                <Info size={16} />
+                <span>{dictation.error}</span>
+                <button
+                  onClick={dictation.clearError}
+                  aria-label="Dismiss speech notice"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            {dictation.busy && (
+              <div className="dictation-status" role="status">
+                <span>
+                  {dictation.phase === "recording" ? (
+                    <>
+                      <i className="recording-dot" />
+                      Recording · {Math.floor(dictation.seconds / 60)}:
+                      {String(dictation.seconds % 60).padStart(2, "0")} / 1:00
+                    </>
+                  ) : (
+                    <>
+                      <LoaderCircle size={14} className="spin" />
+                      {dictation.phase === "permission"
+                        ? "Allow microphone access to begin"
+                        : "Transcribing with ElevenLabs…"}
+                    </>
+                  )}
+                </span>
+                <button type="button" onClick={dictation.cancel}>
+                  Cancel
+                </button>
+              </div>
+            )}
             {error && (
               <div className="connection-error" role="alert">
                 <Info size={16} />
@@ -636,35 +612,64 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
               }}
             >
               <input
+                ref={input}
                 id="message-input"
                 aria-label="Your message"
                 value={draft}
                 maxLength={1000}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Message Steady…"
-                disabled={status === "connecting"}
+                disabled={status === "connecting" || dictation.busy}
               />
               <button
                 type="button"
-                className="mic-button"
-                onClick={() => (liveActive ? stopLive() : startLive(true))}
+                className={`mic-button${dictation.phase === "recording" ? " is-recording" : ""}`}
+                onClick={() =>
+                  dictation.phase === "recording"
+                    ? dictation.finish()
+                    : void dictation.start()
+                }
+                disabled={
+                  liveActive ||
+                  dictation.phase === "permission" ||
+                  dictation.phase === "transcribing"
+                }
                 aria-label={
+                  dictation.phase === "recording"
+                    ? "Stop recording and transcribe"
+                    : "Dictate a message"
+                }
+                title={
                   liveActive
-                    ? "End live conversation"
-                    : "Start voice conversation"
+                    ? "End the live conversation to dictate a message"
+                    : "Speech-to-text with ElevenLabs"
                 }
               >
-                {liveActive ? <Square size={16} /> : <Mic size={18} />}
+                {dictation.phase === "recording" ? (
+                  <Square size={15} fill="currentColor" />
+                ) : dictation.phase === "transcribing" ? (
+                  <LoaderCircle size={18} className="spin" />
+                ) : (
+                  <Mic size={18} />
+                )}
               </button>
               <Button
                 type="submit"
                 className="send-button"
                 aria-label="Send message"
-                disabled={!draft.trim() || status === "connecting"}
+                disabled={
+                  !draft.trim() || status === "connecting" || dictation.busy
+                }
               >
                 <ArrowUp size={18} />
               </Button>
             </form>
+            {dictation.phase === "recording" && (
+              <p className="dictation-hint">
+                Press stop to transcribe. You can review the text before
+                sending.
+              </p>
+            )}
             <p className="composer-footnote">
               <ShieldCheck size={12} />
               Educational guidance. Estimates are not policy quotes.
@@ -672,6 +677,18 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           </div>
         </section>
       </main>
+      {insight && (
+        <InsightView
+          state={state}
+          initialFocus={insight}
+          example={example}
+          onClose={() => setInsight(null)}
+          onEdit={() => {
+            setInsight(null);
+            setEditor("review");
+          }}
+        />
+      )}
       {editor && (
         <ProfileEditor
           key={state.revision}

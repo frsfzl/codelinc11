@@ -20,12 +20,14 @@ npm run build
 npm run test:e2e   # Desktop + mobile customer flows; requires Chrome
 ```
 
-The browser tests use a local server and a fresh browser context. Run them with live credentials absent. On a machine without Chrome, install Chrome or change the Playwright configuration to an installed Chromium browser. To test a production build, run `npm run build`, then `npm start`, then the browser tests against that server.
+The browser tests use a local server and a fresh browser context. Dictation tests substitute a microphone and intercept transcription requests, so they never record your microphone or incur provider usage. The test server enables the speech UI with a dummy CLI path. If reusing an existing server, configure speech-to-text on that server; leave the live agent unconfigured for the fallback tests. On a machine without Chrome, install Chrome or change the Playwright configuration to an installed Chromium browser. To test a production build, run `npm run build`, then `npm start`, then the browser tests against that server.
 
 ## Customer experience
 
-- **Homepage:** mission, four offerings, conversation preview, topic entry points, and clear calls to begin.
-- **Assessment:** conversational intake plus a live, editable “Your situation” panel; collapsed by default on phones.
+- **Homepage:** a concise, single-screen mission and four offerings with clear calls to begin. Fits desktop, the 847 × 765 compact browser, and phone viewports without hiding overflowing content.
+- **Assessment:** a quiet chat surface and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
+- **Full-page insights:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
+- **Dictation:** the composer microphone records up to 60 seconds, transcribes with ElevenLabs Scribe v2, and appends the text to your editable draft. Nothing sends automatically.
 - **Review:** unknown values remain blank, zero means an explicit exclusion, and final calculation requires the customer's confirmation.
 - **Explainable result:** total needs, resources already in place, additional coverage, line items and assumptions.
 - **What-if:** compare a different support period or unavailable employer coverage against the original, one change at a time.
@@ -33,6 +35,24 @@ The browser tests use a local server and a fresh browser context. Run them with 
 - **Accessibility:** native modal focus management and Escape behavior, labeled inputs, keyboard controls, visible focus, transcript announcements, responsive layout and reduced-motion support.
 
 The “Try an example” flow is explicitly fictional. Guided mode uses deterministic questions and a limited amount parser; it is **not presented as live AI**. It accepts numbers such as `40k`, `40,000/year`, or `3,000 per month` for annual support/income. More open-ended understanding is handled by the optional live agent.
+
+## ElevenLabs speech-to-text
+
+The small microphone beside the message field is independent of the full voice conversation. Click it, allow microphone access, speak, and press stop. Review or edit the transcript before sending. Cancel discards the recording or ignores an in-flight result. Microphone tracks are released on stop, cancel, and leaving the page. Permission denial, silence, provider failures, and overly long transcripts preserve your existing draft.
+
+For normal hosting, set `ELEVENLABS_API_KEY` in the server-only `.env.local` and set `APP_ORIGIN` to the exact browser origin, then restart the server. No agent ID is needed for dictation. The Node endpoint `/api/transcribe` sends multipart audio to ElevenLabs using `model_id=scribe_v2`; no credentials reach the browser. Uploads are limited to 5 MiB, provider calls time out, and same-origin checks plus a small process-local request/concurrency limit guard this local demo.
+
+For local development with an already authenticated ElevenLabs CLI, an optional bridge is supported:
+
+```dotenv
+APP_ORIGIN=http://127.0.0.1:3000
+ELEVENLABS_USE_CLI=true
+ELEVENLABS_CLI_PATH=/absolute/path/to/native/elevenlabs-executable
+```
+
+On Windows use the actual `elevenlabs.exe`, not the npm `.cmd` or PowerShell shim. The server invokes it directly without a shell, uses its existing login, and removes its temporary audio file afterward. CLI mode is restricted to loopback origins; use an API key for a hosted deployment. This workstation's ignored `.env.local` enables that local bridge. A synthetic audio sample was successfully recorded with Chrome's native MediaRecorder, transcribed through the app's endpoint using the authenticated CLI, and returned to the editable draft without auto-sending.
+
+The app does not persist audio or transcripts. ElevenLabs processes the recording under the account's provider retention settings; this integration does not request enterprise-only zero-retention mode. Canceling an already submitted request does not delete provider records. See the [official speech-to-text API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).
 
 ## Optional live voice and text
 
@@ -44,7 +64,7 @@ The “Try an example” flow is explicitly fictional. Guided mode uses determin
 
 The integration uses `@elevenlabs/react` 1.16 with `ConversationProvider`. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer form edits cannot be overwritten by stale requests. An open profile editor blocks agent writes. Confirmation can only happen in the interface, not through an agent tool. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
 
-Live conversation requires a configured agent and credentials and must be acceptance-tested after setup. This repository does not create an agent or demonstrate that a real provider session has succeeded. Only guided mode, math, UI flows and the unconfigured API behavior have been locally verified. Provider processing/retention is separate from the app's in-memory state; clearing this page does not delete provider records.
+Full live conversation still requires a configured agent and credentials and must be acceptance-tested after setup. This repository does not create an agent or demonstrate that a full conversational agent session has succeeded. Speech-to-text has been separately verified against the real provider; automated tests cover dictation UI states, guided mode, math, charts, and API validation. Provider processing/retention is separate from the app's in-memory state; clearing this page does not delete provider records.
 
 Official integration references: [React SDK](https://elevenlabs.io/docs/eleven-agents/libraries/react), [client tools](https://elevenlabs.io/docs/eleven-agents/customization/tools/client-tools).
 
@@ -71,13 +91,18 @@ This is a simplified educational planning model. It does not model inflation, re
 src/app/page.tsx                     Homepage
 src/app/conversation/page.tsx        Assessment route and configuration flag
 src/app/api/conversation/route.ts    Server-only session signing
+src/app/api/transcribe/route.ts      Bounded speech-to-text endpoint
 src/components/assessment.tsx        In-memory flow and validated client tools
+src/components/key-highlights.tsx    Captured facts only
+src/components/insight-view.tsx      Full-page charts and policy exploration
+src/components/use-dictation.ts      Recording, cancellation and transcript review
 src/components/profile-editor.tsx    Editable, confirmable profile
 src/components/coverage-result.tsx   Explanation and independent scenarios
 src/components/education.tsx         Term/whole-life education
 src/components/live-conversation.tsx ElevenLabs adapter, loaded on configured builds
 src/lib/needs.ts                     Single deterministic calculation boundary
 src/lib/guided.ts                    Explicitly non-AI fallback intake
+src/lib/transcription.ts             Scribe API and opt-in local CLI adapter
 docs/agent-prompt.md                 Personal conversation instructions
 docs/client-tools.json               Tool definitions for agent setup
 tests/                              Unit and desktop/mobile browser coverage

@@ -25,5 +25,10 @@ export default defineConfig({
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
+    // Browser dictation tests intercept /api/transcribe; no provider credentials needed.
+    env: {
+      ELEVENLABS_USE_CLI: "true",
+      ELEVENLABS_CLI_PATH: "mocked-in-browser-tests",
+    },
   },
 });

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./overview.css";
+@import "./insights.css";
+@import "./speech.css";
 @theme inline {
   --font-sans: var(--font-inter), Arial, sans-serif;
   --color-background: #fff;
