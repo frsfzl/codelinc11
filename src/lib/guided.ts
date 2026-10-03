@@ -45,3 +45,34 @@ export function parseAmount(text: string, key: GuidedKey): number | null {
   if (monthly) value *= 12;
   return value <= 100000000 ? Math.round(value * 100) / 100 : null;
 }
+
+// The offline fallback accepts explicit corrections; live Linc handles open-ended language.
+export function parseCorrection(text: string): Partial<Profile> | null {
+  const fields: [Exclude<GuidedKey, "dependents">, string][] = [
+    ["income", "income|salary"],
+    ["annualSupport", "annual support|family support"],
+    ["years", "support period|support years|years"],
+    ["mortgage", "mortgage"],
+    ["debts", "other debts|debts"],
+    ["education", "education"],
+    ["finalExpenses", "final expenses"],
+    ["otherNeeds", "other goals|other needs"],
+    ["employerCoverage", "employer coverage|work coverage"],
+    ["personalCoverage", "personal coverage"],
+    ["savings", "allocated savings|savings"],
+  ];
+  for (const [key, aliases] of fields) {
+    const match = text
+      .trim()
+      .match(
+        new RegExp(
+          `^(?:actually[, ]+)?(?:(?:change|update|set) )?(?:(?:my|the) )?(?:${aliases})\\s+(?:(?:to|is|should be)\\s+)?(.+)$`,
+          "i",
+        ),
+      );
+    if (!match) continue;
+    const amount = parseAmount(match[1], key);
+    return amount === null ? null : { [key]: amount };
+  }
+  return null;
+}

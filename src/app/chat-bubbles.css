@@ -13,10 +13,32 @@
 }
 .messages .message.assistant {
   justify-content: flex-start;
+  align-items: flex-end;
+  gap: 12px;
 }
 .messages .message.user {
   justify-content: flex-end;
   margin-left: 0;
+  background: transparent;
+  padding: 0;
+}
+.linc-avatar {
+  position: relative;
+  display: block;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: white;
+}
+.linc-avatar img {
+  position: absolute;
+  width: 116px;
+  max-width: none;
+  height: auto;
+  left: -12px;
+  top: -7px;
 }
 .message-bubble {
   position: relative;
@@ -27,6 +49,7 @@
 }
 .message.assistant .message-bubble {
   border-bottom-left-radius: 6px;
+  max-width: min(calc(100% - 46px), 620px);
 }
 .message.user .message-bubble {
   background: var(--primary);

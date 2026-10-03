@@ -1,22 +1,28 @@
 import { expect, test, type Page } from "@playwright/test";
-import { exampleProfile } from "../../src/lib/needs";
 
-async function openSampleNumbers(page: Page) {
+async function say(page: Page, text: string) {
   await page
     .getByRole("textbox", { name: "Your message", exact: true })
-    .fill("Compare term and whole life");
+    .fill(text);
   await page.getByRole("button", { name: "Send message", exact: true }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Edit inputs", exact: true })
-    .click();
-  await page
-    .getByLabel("Who are you thinking about?")
-    .fill(exampleProfile.dependents);
-  for (const [key, value] of Object.entries(exampleProfile)) {
-    if (typeof value === "number")
-      await page.locator("#field-" + key).fill(String(value));
-  }
+}
+async function openSampleNumbers(page: Page) {
+  await page.goto("/conversation?mode=text");
+  for (const answer of [
+    "My partner and two children, ages 3 and 7",
+    "80000",
+    "40000",
+    "15",
+    "220000",
+    "0",
+    "80000",
+    "0",
+    "0",
+    "150000",
+    "0",
+    "50000",
+  ])
+    await say(page, answer);
 }
 
 test("homepage fits one screen with mission, offerings and clear entry points", async ({
@@ -113,7 +119,9 @@ test("captured highlights open comparison popups and policy tradeoffs without gu
   await expect(dialog.locator(".duration-diagram")).toHaveClass(/whole/);
   await dialog.getByRole("button", { name: "Close comparison" }).click();
   await openSampleNumbers(page);
-  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
+  await say(page, "Yes, those numbers look right.");
+  if (!(await sidebar.evaluate((el) => (el as HTMLDetailsElement).open)))
+    await sidebar.locator("summary").click();
   await page
     .getByRole("button", { name: "Explore your coverage picture" })
     .click();
@@ -136,9 +144,9 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
 }) => {
   await page.goto("/conversation");
   await openSampleNumbers(page);
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.locator("#field-annualSupport")).toHaveValue("40000");
-  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("log")).toContainText("Does that sound right");
+  await say(page, "Yes, those numbers look right.");
   await expect(page.locator(".result-amount")).toHaveText("$700,000");
   await expect(page.locator(".math-equation")).toContainText("$900,000");
   await expect(page.locator(".math-equation")).toContainText("$200,000");
@@ -164,18 +172,11 @@ test("fictional example confirms inputs, explains math, and keeps scenarios inde
     }),
   ).toBeVisible();
   await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Edit inputs", exact: true })
+    .getByRole("button", { name: "Continue conversation", exact: true })
     .click();
-  await page.locator("#field-years").fill("10");
-  await page
-    .getByRole("button", { name: "Save for later", exact: true })
-    .click();
+  await say(page, "Change support period to 10");
   await expect(page.locator(".result-card")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Review my numbers", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
+  await say(page, "Yes, those numbers look right.");
   await expect(page.locator(".result-amount")).toHaveText("$500,000");
   expect(
     await page.evaluate(
@@ -203,19 +204,13 @@ test("guided typing, monthly units, missing fields and a fresh page session", as
       .click();
   }
   await expect(page.getByRole("log")).toContainText("$36,000 per year");
-  await page
-    .getByRole("button", { name: "Review & fill in my numbers" })
-    .click();
-  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "Please fill in",
+  await expect(page.locator(".review-action")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await say(page, "-1");
+  await expect(page.getByRole("log")).toContainText(
+    "whole number from 1 to 60",
   );
-  await page.locator("#field-years").fill("-1");
-  await page.getByRole("button", { name: "Confirm & see estimate" }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "whole number of years",
-  );
-  await page.getByRole("button", { name: "Close profile editor" }).click();
+  await expect(page.locator(".result-card")).toHaveCount(0);
   await page.reload();
   await expect(page.locator(".highlight-card")).toHaveCount(0);
   await expect(page.locator(".result-card")).toHaveCount(0);

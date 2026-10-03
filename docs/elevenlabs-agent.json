@@ -9,14 +9,12 @@
     "tool_1201m41qq005e2997sq2hknzst8x",
     "tool_7201m41qq0feen192j6m419bt9ps",
     "tool_3801m41qq0ykedk8dmdzhpsy6ck5",
-    "tool_1901m41qq1b5e05vt8hsfj20zsd2"
+    "tool_1901m41qq1b5e05vt8hsfj20zsd2",
+    "tool_7201m41st6z5efjs8ytvz8m7qr11"
   ],
   "auth": {
     "private": true,
-    "allowedHosts": [
-      "127.0.0.1:3000",
-      "localhost:3000"
-    ]
+    "allowedHosts": ["127.0.0.1:3000", "localhost:3000"]
   },
   "note": "Non-secret configuration reference. Local credentials stay in the ignored .env.local file. Live acceptance testing is pending."
 }

@@ -60,7 +60,7 @@ test("bad units and untrusted data must be rejected at the calculation boundary"
     ),
   );
 });
-test("AI tools cannot confirm inputs or overwrite newer form edits", () => {
+test("Profile updates cannot silently confirm inputs or overwrite newer corrections", () => {
   const initial = {
     profile: exampleProfile,
     revision: 2,
@@ -73,8 +73,8 @@ test("AI tools cannot confirm inputs or overwrite newer form edits", () => {
   assert.throws(() => applyProfilePatch(initial, { confirmedRevision: 2 }, 2));
   const edited = applyProfilePatch(initial, { annualSupport: 30000 }, 2);
   assert.equal(edited.confirmedRevision, null);
-  assert.throws(() => confirmedEstimate(edited, 3), /review and confirm/);
-  assert.throws(() => confirmedEstimate(initial, 1), /review and confirm/);
+  assert.throws(() => confirmedEstimate(edited, 3), /review_profile/);
+  assert.throws(() => confirmedEstimate(initial, 1), /review_profile/);
   assert.equal(confirmedEstimate(initial, 2).additional, 700000);
 });
 test("income and unallocated budget never silently change the calculation", () => {

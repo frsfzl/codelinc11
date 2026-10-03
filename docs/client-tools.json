@@ -4,7 +4,11 @@
     "name": "get_profile",
     "description": "Read authoritative current profile, revision, confirmation and missing inputs before updating or calculating.",
     "expects_response": true,
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
   },
   {
     "type": "client",
@@ -28,8 +32,8 @@
   },
   {
     "type": "client",
-    "name": "calculate_needs",
-    "description": "Calculate only after the customer confirms all current inputs in the interface. Return exact structured line items and assumptions. Never substitute model arithmetic for a rejected tool call.",
+    "name": "review_profile",
+    "description": "Once all required inputs are captured, obtain the exact current recap. Present it naturally in conversation and ask if it is right. Wait for a NEW user reply before calculate_needs. There is no form. Corrections require another update and recap.",
     "expects_response": true,
     "parameters": {
       "type": "object",
@@ -37,6 +41,26 @@
         "expectedRevision": {
           "type": "integer",
           "description": "Latest revision from get_profile."
+        }
+      },
+      "required": ["expectedRevision"]
+    }
+  },
+  {
+    "type": "client",
+    "name": "calculate_needs",
+    "description": "Calculate after the customer confirms the current review_profile recap in conversation. Supply their exact latest affirmative reply in confirmationQuote. Already confirmed revisions do not need another quote. Returns exact math and displays the result automatically.",
+    "expects_response": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "description": "Latest revision from get_profile."
+        },
+        "confirmationQuote": {
+          "type": "string",
+          "description": "Exact latest user reply confirming the recap, e.g. Yes, those numbers look right. Must follow review_profile. Do not invent or paraphrase it; never treat a correction as approval. Optional only if this revision was already confirmed."
         }
       },
       "required": ["expectedRevision"]

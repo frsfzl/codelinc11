@@ -7,7 +7,7 @@ import {
   Check,
   Clock3,
   Infinity as InfinityIcon,
-  Pencil,
+  MessageCircle,
   Scale,
 } from "lucide-react";
 import {
@@ -36,13 +36,13 @@ export function InsightView({
   initialFocus,
   example,
   onClose,
-  onEdit,
+  onContinue,
 }: {
   state: ProfileState;
   initialFocus: HighlightKey;
   example: boolean;
   onClose: () => void;
-  onEdit: () => void;
+  onContinue: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [focus, setFocus] = useState(initialFocus);
@@ -71,9 +71,9 @@ export function InsightView({
       aria-labelledby="insight-title"
     >
       <header className="insight-header">
-        <button className="text-link" onClick={onEdit}>
-          <Pencil size={14} />
-          Edit inputs
+        <button className="text-link" onClick={onContinue}>
+          <MessageCircle size={14} />
+          Continue conversation
         </button>
         <span>{example ? "FICTIONAL EXAMPLE" : "YOUR PERSONAL OVERVIEW"}</span>
         <button
@@ -96,7 +96,7 @@ export function InsightView({
           </div>
           <span className={`review-status ${confirmed ? "confirmed" : ""}`}>
             {confirmed && <Check size={13} />}
-            {confirmed ? "Inputs reviewed" : "Inputs awaiting review"}
+            {confirmed ? "Inputs reviewed" : "Confirm details with Linc"}
           </span>
         </div>
         <nav className="insight-nav" aria-label="Captured highlights">
@@ -152,8 +152,8 @@ export function InsightView({
                   : "Your inputs are ready to check. Confirm them to see your coverage estimate."}
               </p>
             </div>
-            <button className="text-link" onClick={onEdit}>
-              Review my numbers <ArrowRight size={14} />
+            <button className="text-link" onClick={onContinue}>
+              Continue with Linc <ArrowRight size={14} />
             </button>
           </div>
         )}
@@ -213,7 +213,7 @@ export function InsightView({
             <p className="chart-note">
               {confirmed
                 ? "Needs minus resources, with a minimum gap of $0. Inflation, returns, and taxes are not modeled."
-                : "This is not a final estimate. Review and confirm your entries before calculating a coverage gap."}
+                : "This is not a final estimate. Linc will gather the remaining details and confirm them with you in chat."}
             </p>
           </section>
           <section

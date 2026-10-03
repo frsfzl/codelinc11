@@ -250,7 +250,7 @@ export function confirmedEstimate(
     state.confirmedRevision !== state.revision
   )
     throw new Error(
-      "Ask the customer to review and confirm the current inputs using Review my numbers before calculating.",
+      "Use review_profile to summarize the current numbers in the conversation, then wait for the customer to confirm before calculating.",
     );
   return calculateNeeds(state.profile);
 }

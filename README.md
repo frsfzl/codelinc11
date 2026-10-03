@@ -1,6 +1,6 @@
 # Linc · CodeLinc 11
 
-A conversational life-insurance needs planner with a Lincoln Financial logo and a white, pale-blue, burgundy and orange interface, editable customer inputs, and transparent coverage math. Built on the `shivaa` branch. No AWS resources have been created or deployed.
+A conversational life-insurance needs planner with a Lincoln Financial logo and a white, pale-blue, burgundy and orange interface, automatically captured conversation details, and transparent coverage math. Built on the `shivaa` branch. No AWS resources have been created or deployed.
 
 ## Run locally
 
@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. The guided assessment, calculator, scenario comparison and policy education work without credentials. Refreshing the page clears the in-memory profile and conversation.
+Open http://127.0.0.1:3000. The guided conversation, calculator, scenario comparison and policy education work without credentials. Refreshing the page clears the in-memory profile and conversation.
 
 ```sh
 npm test           # Deterministic math, validation, guided units, stale revisions
@@ -28,7 +28,8 @@ The browser tests run against an isolated production server on port 3001 with th
 - **Assessment:** a pale-blue chat surface with a matching composer and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
 - **Comparison popups:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
 - **Dictation:** the composer microphone records up to 60 seconds, transcribes with ElevenLabs Scribe v2, and appends the text to your editable draft. Nothing sends automatically.
-- **Review:** unknown values remain blank, zero means an explicit exclusion, and final calculation requires the customer's confirmation.
+- **Conversation-only intake:** Linc asks the relevant questions, captures natural-language answers, and asks for a quick spoken or typed confirmation of the recap. No intake form or review buttons. Unknown values stay unknown and zero means an explicit exclusion.
+- **Recommendation:** after confirmation, the exact calculation appears automatically and Linc explains the coverage target, support horizon, relevant policy direction and tradeoffs. Corrections in chat invalidate the previous estimate until reconfirmed.
 - **Explainable result:** total needs, resources already in place, additional coverage, line items and assumptions.
 - **What-if:** compare a different support period or unavailable employer coverage against the original, one change at a time.
 - **Education:** term versus whole life, time-bound versus lifelong needs, affordability context, and links to consumer education.
@@ -56,15 +57,15 @@ The app does not persist audio or transcripts. ElevenLabs processes the recordin
 
 ## Live voice and text
 
-1. Create a private ElevenLabs Agent. Use `docs/agent-prompt.md` as its system prompt and register the five client tools in `docs/client-tools.json`. Tool names and types must match exactly. Enable **Wait for response** for each client tool.
+1. Create a private ElevenLabs Agent. Use `docs/agent-prompt.md` as its system prompt and register the six client tools in `docs/client-tools.json`. Tool names and types must match exactly. Enable **Wait for response** for each client tool.
 2. Configure the `profile_context` dynamic variable with a default of `{}` and `opening_message` with a greeting introducing Linc. Enable text-only conversations so the same agent supports typing without microphone access. Choose a voice/model in the ElevenLabs dashboard; no voice ID or model is hard-coded in this repo.
 3. Restrict the agent's allowed origins to your development origin. Configure provider retention and recording settings appropriate to the demo before using real information.
 4. Copy `.env.example` to `.env.local`, set `ELEVENLABS_AGENT_ID` and either the server-only `ELEVENLABS_API_KEY` or the local authenticated CLI settings above, and set `APP_ORIGIN` to the exact URL origin you open. Restart the server. Do not put secrets in `NEXT_PUBLIC_` variables or commit `.env.local`.
 5. Type and send a message to connect automatically, or select **Connect live text** or **Start voice conversation**. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
 
-The integration uses `@elevenlabs/react` 1.16 with `ConversationProvider`. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer form edits cannot be overwritten by stale requests. An open profile editor blocks agent writes. Confirmation can only happen in the interface, not through an agent tool. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
+The integration uses `@elevenlabs/react` 1.16 with `ConversationProvider`. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer corrections cannot be overwritten by stale requests. `review_profile` returns a recap tied to the current revision. `calculate_needs` requires a new affirmative user reply after that recap, quoted exactly; old or invented confirmations are rejected. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
 
-The private **Linc — CodeLinc 11** agent is configured in ElevenLabs with five client tools, the Bella voice, GPT-4.1 mini, sequential tool calls, text/voice support, and localhost access restrictions. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Voice recording is disabled in the agent settings and conversation retention is seven days.
+The private **Linc — CodeLinc 11** agent is configured in ElevenLabs with six client tools, the Bella voice, GPT-4.1 mini, sequential tool calls, text/voice support, and localhost access restrictions. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Voice recording is disabled in the agent settings and conversation retention is seven days.
 
 An initial live-chat check exposed a startup issue before any provider conversation began; the adapter loading was corrected. Further live sessions and automated tests were skipped at the user's request, so end-to-end live agent behavior remains unverified. Speech-to-text was separately verified against the real provider before these changes. Provider processing/retention is separate from the app's in-memory state; refreshing this page does not delete provider records.
 
@@ -98,7 +99,7 @@ src/components/assessment.tsx        In-memory flow and validated client tools
 src/components/key-highlights.tsx    Captured facts only
 src/components/insight-view.tsx      Popup charts and policy exploration
 src/components/use-dictation.ts      Recording, cancellation and transcript review
-src/components/profile-editor.tsx    Editable, confirmable profile
+src/lib/conversation-review.ts       Spoken/typed recap and confirmation guard
 src/components/coverage-result.tsx   Explanation and independent scenarios
 src/components/education.tsx         Term/whole-life education
 src/components/live-conversation.tsx ElevenLabs voice and text adapter

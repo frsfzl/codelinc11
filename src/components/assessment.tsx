@@ -19,7 +19,13 @@ import { z } from "zod";
 import { Brand } from "./brand";
 import { Button } from "./ui/button";
 import { CoverageResult } from "./coverage-result";
-import { ProfileEditor } from "./profile-editor";
+import { LincAvatar } from "./linc-avatar";
+import {
+  prepareReview,
+  confirmInConversation,
+  isClearConfirmation,
+  type ConversationReview,
+} from "@/lib/conversation-review";
 import { KeyHighlights } from "./key-highlights";
 import { InsightView } from "./insight-view";
 import { useDictation } from "./use-dictation";
@@ -38,7 +44,12 @@ import {
   type ProfileState,
   type Scenario,
 } from "@/lib/needs";
-import { nextQuestion, parseAmount, questionFor } from "@/lib/guided";
+import {
+  nextQuestion,
+  parseAmount,
+  parseCorrection,
+  questionFor,
+} from "@/lib/guided";
 
 type Message = { id: number; role: "user" | "assistant"; text: string };
 const intentLabels: Record<string, string> = {
@@ -80,9 +91,8 @@ export function Assessment({
     setDraft(next);
     requestAnimationFrame(() => input.current?.focus());
   });
-  const [editor, setEditor] = useState<"edit" | "review" | null>(null);
-  const editing = useRef(false);
-  editing.current = editor !== null;
+  const pendingReview = useRef<ConversationReview | null>(null);
+  const latestUser = useRef<{ id: number; text: string } | null>(null);
   const [insight, setInsight] = useState<HighlightKey | null>(
     params.get("learn") === "true" ? "support" : null,
   );
@@ -93,15 +103,14 @@ export function Assessment({
   const [liveMode, setLiveMode] = useState(false);
   const cancelDictation = dictation.cancel;
   useEffect(() => {
-    if (editor || insight) cancelDictation();
-  }, [editor, insight, cancelDictation]);
+    if (insight) cancelDictation();
+  }, [insight, cancelDictation]);
   const [activeScenario, setActiveScenario] = useState<Scenario>({});
   const live = useRef<LiveHandle>(null);
   const transcript = useRef<HTMLDivElement>(null);
   const situation = useRef<HTMLDetailsElement>(null);
   const liveActive = liveMode && !["disconnected", "error"].includes(status);
   const isConfirmed = state.confirmedRevision === state.revision;
-  const missing = missingFields(state.profile);
   const question = nextQuestion(state.profile, skippedIncome);
   useEffect(() => {
     if (window.matchMedia("(max-width: 760px)").matches && situation.current)
@@ -109,9 +118,13 @@ export function Assessment({
   }, []);
 
   const addMessage = useCallback((role: Message["role"], text: string) => {
-    setMessages((prev) => [...prev, { id: ++sequence.current, role, text }]);
+    const message = { id: ++sequence.current, role, text };
+    if (role === "user") latestUser.current = message;
+    setMessages((prev) => [...prev, message]);
   }, []);
   function update(next: ProfileState) {
+    if (next.revision !== current.current.revision)
+      pendingReview.current = null;
     current.current = next;
     setState(next);
     setActiveScenario({});
@@ -148,12 +161,9 @@ export function Assessment({
         JSON.stringify({
           ...current.current,
           missing: missingFields(current.current.profile),
+          pendingReview: pendingReview.current,
         }),
       update_profile: guarded((args) => {
-        if (editing.current)
-          throw new Error(
-            "The customer is reviewing or editing their inputs. Wait until they finish, then read get_profile again.",
-          );
         const { expectedRevision, patch } = stateSchema
           .extend({ patch: z.string().max(10000) })
           .strict()
@@ -168,12 +178,47 @@ export function Assessment({
           ...next,
           missing: missingFields(next.profile),
           instruction:
-            "Inputs were updated. Customer must review and confirm in the interface before calculation.",
+            "Details captured. Ask the next missing question naturally. When complete, use review_profile and ask the customer to confirm the recap in chat. Never ask them to fill in a form.",
+        };
+      }),
+      review_profile: guarded((args) => {
+        const { expectedRevision } = stateSchema.strict().parse(args);
+        if (pendingReview.current?.revision !== current.current.revision)
+          pendingReview.current = prepareReview(
+            current.current,
+            expectedRevision,
+            latestUser.current?.id ?? 0,
+          );
+        else if (expectedRevision !== current.current.revision)
+          throw new Error("Read the latest profile first.");
+        return {
+          ...pendingReview.current,
+          instruction:
+            "Share this recap in the conversation, including zeros. Ask whether it is correct and WAIT for a new customer reply. No forms or buttons.",
         };
       }),
       calculate_needs: guarded((args) => {
-        const { expectedRevision } = stateSchema.strict().parse(args);
-        return confirmedEstimate(current.current, expectedRevision);
+        const { expectedRevision, confirmationQuote } = stateSchema
+          .extend({ confirmationQuote: z.string().max(1000).optional() })
+          .strict()
+          .parse(args);
+        if (expectedRevision !== current.current.revision)
+          throw new Error("Read the latest profile first.");
+        if (current.current.confirmedRevision !== current.current.revision) {
+          update(
+            confirmInConversation(
+              current.current,
+              pendingReview.current,
+              latestUser.current,
+              confirmationQuote ?? "",
+            ),
+          );
+        }
+        return {
+          ...confirmedEstimate(current.current, expectedRevision),
+          instruction:
+            "Give a personalized planning recommendation now, explain these exact numbers, and discuss the relevant term/whole-life tradeoff. Do not request a form.",
+        };
       }),
       explore_scenario: guarded((args) => {
         const { expectedRevision, ...scenario } = stateSchema
@@ -212,21 +257,30 @@ export function Assessment({
     scenario: activeScenario,
   });
 
-  function saveProfile(profile: Profile, confirm: boolean) {
-    const revision = current.current.revision + 1;
-    update({ profile, revision, confirmedRevision: confirm ? revision : null });
-    if (confirm)
-      addMessage(
-        "assistant",
-        "Your numbers are confirmed. The breakdown below shows what you want to provide, what’s already in place, and the estimated gap. You can change any input or explore a what-if.",
-      );
-    else
-      addMessage(
-        "assistant",
-        `Your inputs have been updated. ${questionFor(nextQuestion(profile, skippedIncome))}`,
-      );
-  }
   function guidedAnswer(text: string) {
+    const correction = parseCorrection(text);
+    if (correction) {
+      const next = applyProfilePatch(
+        current.current,
+        correction,
+        current.current.revision,
+      );
+      update(next);
+      const following = nextQuestion(next.profile, skippedIncome);
+      if (following === null) {
+        pendingReview.current = prepareReview(
+          next,
+          next.revision,
+          latestUser.current?.id ?? 0,
+        );
+        addMessage(
+          "assistant",
+          `I’ve updated that. ${pendingReview.current.summary}`,
+        );
+      } else
+        addMessage("assistant", `I’ve updated that. ${questionFor(following)}`);
+      return;
+    }
     if (/^(term|whole life|learn|compare)/i.test(text)) {
       setInsight("support");
       addMessage(
@@ -236,10 +290,29 @@ export function Assessment({
       return;
     }
     if (question === null) {
-      addMessage(
-        "assistant",
-        "Your inputs are ready. Choose Review my numbers to confirm them, or Edit inputs to make a change. Guided mode uses set questions; live chat can handle an open-ended conversation when connected.",
-      );
+      if (pendingReview.current && isClearConfirmation(text)) {
+        const confirmed = confirmInConversation(
+          current.current,
+          pendingReview.current,
+          latestUser.current,
+          text,
+        );
+        update(confirmed);
+        const result = confirmedEstimate(confirmed, confirmed.revision);
+        addMessage(
+          "assistant",
+          result.additional === 0
+            ? "Based on the numbers you confirmed, your selected resources cover the needs in this estimate. The breakdown is below; we can still explore policy tradeoffs and changes in your plans."
+            : `Your planning estimate is ${currency(result.additional)} in additional coverage: ${currency(result.totalNeeds)} of needs minus ${currency(result.totalResources)} already in place. For support lasting ${confirmed.profile.years} years, term coverage is one option to explore; whole life may be relevant to lifelong goals. This guided estimate cannot decide policy suitability, and actual costs depend on the policy.`,
+        );
+      } else {
+        pendingReview.current = prepareReview(
+          current.current,
+          current.current.revision,
+          latestUser.current?.id ?? 0,
+        );
+        addMessage("assistant", pendingReview.current.summary);
+      }
       return;
     }
     if (/^(skip|i don.?t know|not sure|unsure)/i.test(text)) {
@@ -252,7 +325,7 @@ export function Assessment({
       } else
         addMessage(
           "assistant",
-          `It’s okay not to know yet. ${question === "dependents" ? "You can describe anyone you have in mind, or say you’re just exploring." : fieldInfo[question].help} You can use Edit inputs to work through it in your own time. I’ll leave this blank rather than assume a number.`,
+          `It’s okay not to know yet. ${question === "dependents" ? "You can describe anyone you have in mind, or say you’re just exploring." : fieldInfo[question].help} We can talk through a rough estimate or come back to it. I’ll leave this blank rather than assume a number.`,
         );
       return;
     }
@@ -261,7 +334,7 @@ export function Assessment({
       if (text.length > 500) {
         addMessage(
           "assistant",
-          "For this first step, could you give me a shorter description of who you’re thinking of—under 500 characters? You can add your priorities in Edit inputs.",
+          "For this first step, could you give me a shorter description of who you’re thinking of—under 500 characters? We can talk about your priorities next.",
         );
         return;
       }
@@ -271,7 +344,7 @@ export function Assessment({
       if (amount === null) {
         addMessage(
           "assistant",
-          `For this guided step, enter one ${question === "years" ? "whole number from 1 to 60" : "amount, such as 40,000 or 40k"}. ${question === "annualSupport" || question === "income" ? "You can include “per month” and I’ll show the yearly equivalent for you to review." : "Use Edit inputs if you’d like to change several things together."}`,
+          `For this guided step, enter one ${question === "years" ? "whole number from 1 to 60" : "amount, such as 40,000 or 40k"}. ${question === "annualSupport" || question === "income" ? "You can include “per month” and I’ll show the yearly equivalent for you to review." : "Live chat can understand several details together."}`,
         );
         return;
       }
@@ -286,11 +359,16 @@ export function Assessment({
     const value =
       question === "dependents"
         ? "Thank you. We’ll keep them in mind."
-        : `${fieldInfo[question].label}: ${question === "years" ? `${next.profile.years} years` : `${currency(next.profile[question]!)}${question === "income" || question === "annualSupport" ? " per year" : ""}`}. You’ll review this before we calculate.`;
-    addMessage(
-      "assistant",
-      `${value}\n\n${questionFor(nextQuestion(next.profile, skippedIncome))}`,
-    );
+        : `${fieldInfo[question].label}: ${question === "years" ? `${next.profile.years} years` : `${currency(next.profile[question]!)}${question === "income" || question === "annualSupport" ? " per year" : ""}`}. You can correct that in your next message.`;
+    const following = nextQuestion(next.profile, skippedIncome);
+    if (following === null) {
+      pendingReview.current = prepareReview(
+        next,
+        next.revision,
+        latestUser.current?.id ?? 0,
+      );
+      addMessage("assistant", pendingReview.current.summary);
+    } else addMessage("assistant", `${value}\n\n${questionFor(following)}`);
   }
   async function send() {
     const text = draft.trim();
@@ -308,7 +386,7 @@ export function Assessment({
     dictation.cancel();
     if (!liveEnabled) {
       setError(
-        "Live conversation isn’t connected in this preview. You can type answers to the guided questions, or review your inputs.",
+        "Live conversation isn’t connected in this preview. You can answer the guided questions by typing.",
       );
       return false;
     }
@@ -401,6 +479,7 @@ export function Assessment({
                         key={message.id}
                         className={`message ${message.role}`}
                       >
+                        {message.role === "assistant" && <LincAvatar />}
                         <div className="message-bubble">
                           <span className="sr-only">
                             {message.role === "assistant" ? "Linc: " : "You: "}
@@ -414,24 +493,6 @@ export function Assessment({
                     <div className="assistant-working">
                       <LoaderCircle size={14} className="spin" />
                       Linc is thinking…
-                    </div>
-                  )}
-                  {!isConfirmed && (
-                    <div className="review-action">
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => setEditor("review")}
-                      >
-                        {missing.length
-                          ? "Review & fill in my numbers"
-                          : "Review my numbers"}
-                        <ArrowRight size={16} />
-                      </button>
-                      <span>
-                        {missing.length
-                          ? `${missing.length} inputs still needed. Nothing is assumed.`
-                          : "A quick check before we calculate."}
-                      </span>
                     </div>
                   )}
                 </>
@@ -610,21 +671,13 @@ export function Assessment({
           initialFocus={insight}
           example={example}
           onClose={() => setInsight(null)}
-          onEdit={() => {
+          onContinue={() => {
             setInsight(null);
-            setEditor("review");
+            requestAnimationFrame(() => input.current?.focus());
           }}
         />
       )}
-      {editor && (
-        <ProfileEditor
-          key={state.revision}
-          profile={state.profile}
-          review={editor === "review"}
-          onSave={saveProfile}
-          onClose={() => setEditor(null)}
-        />
-      )}
+
       {liveEnabled && (
         <LiveConversation
           ref={live}
