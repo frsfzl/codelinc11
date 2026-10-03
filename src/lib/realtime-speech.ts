@@ -5,6 +5,7 @@ export interface SpeechStream {
   close: () => void;
   commit: () => void;
   mute: () => void;
+  unmute: () => void;
 }
 
 export async function openSpeechStream(
@@ -27,6 +28,7 @@ export async function openSpeechStream(
     const connection = Scribe.connect({
       token,
       modelId: "scribe_v2_realtime",
+      languageCode: "en",
       commitStrategy: CommitStrategy.VAD,
       vadSilenceThresholdSecs: 0.5,
       microphone: {
@@ -72,6 +74,7 @@ export async function openSpeechStream(
         close,
         commit: () => connection.commit(),
         mute: () => connection.mute(),
+        unmute: () => connection.unmute(),
       });
     });
     connection.on(RealtimeEvents.PARTIAL_TRANSCRIPT, ({ text }) => {

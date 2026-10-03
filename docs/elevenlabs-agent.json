@@ -4,6 +4,8 @@
   "model": "gpt-4.1-mini",
   "voiceId": "hpp4J3VqNfWAUOO0d1Us",
   "ttsModel": "eleven_flash_v2",
+  "language": "en",
+  "liveTranscriptionLanguage": "en",
   "toolIds": [
     "tool_3201m41qpzfdey4rvek6qgqsw2k5",
     "tool_1201m41qq005e2997sq2hknzst8x",

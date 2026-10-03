@@ -19,6 +19,7 @@ import { Brand } from "./brand";
 import { Button } from "./ui/button";
 import { CoverageResult } from "./coverage-result";
 import { LincAvatar } from "./linc-avatar";
+import { AssistantReply, ThinkingIndicator } from "./assistant-reply";
 import {
   prepareReview,
   confirmInConversation,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/conversation-review";
 import { KeyHighlights } from "./key-highlights";
 import { InsightView } from "./insight-view";
-import { VoiceStage } from "./voice-stage";
+import { VoiceComposer } from "./voice-stage";
 import type { HighlightKey } from "@/lib/highlights";
 import type { LiveHandle, LiveStatus } from "./live-conversation";
 import {
@@ -88,6 +89,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   const [error, setError] = useState("");
   const [liveMode, setLiveMode] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [microphoneMuted, setMicrophoneMuted] = useState(false);
   const [voiceMode, setVoiceMode] = useState(true);
   const [livePartial, setLivePartial] = useState("");
   const [transcriptionNotice, setTranscriptionNotice] = useState("");
@@ -131,7 +133,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         panel.getBoundingClientRect().top -
         24;
     else panel.scrollTop = panel.scrollHeight;
-  }, [messages.length, isConfirmed, voiceVisible]);
+  }, [messages.length, isConfirmed]);
   const tools = useMemo(() => {
     function guarded(work: (args: Record<string, unknown>) => unknown) {
       return (args: Record<string, unknown>) => {
@@ -385,6 +387,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     }
     setError("");
     setPaused(false);
+    setMicrophoneMuted(false);
     setVoiceMode(voice);
     setVoiceVisible(voice);
     setLiveMode(true);
@@ -394,6 +397,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     live.current?.stop();
     setLiveMode(false);
     setPaused(pause);
+    setMicrophoneMuted(false);
     setLivePartial("");
     setTranscriptionNotice("");
   }
@@ -403,9 +407,10 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     setVoiceVisible(false);
     requestAnimationFrame(() => input.current?.focus());
   }
-  const lastReply = [...messages]
-    .reverse()
-    .find((message) => message.role === "assistant")?.text;
+  function toggleMicrophone() {
+    const next = !microphoneMuted;
+    if (live.current?.setMuted(next)) setMicrophoneMuted(next);
+  }
   return (
     <div className="assessment-page">
       <header className="site-header">
@@ -434,86 +439,91 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           <h1 id="chat-title" className="sr-only">
             Conversation with Linc
           </h1>
-          {voiceVisible ? (
-            <VoiceStage
-              status={status}
-              paused={paused}
-              words={livePartial}
-              inputLevel={inputLevel}
-              reply={lastReply}
-              error={error}
-              notice={transcriptionNotice}
-              onPause={() => stopLive(true)}
-              onResume={() => void startLive(true)}
-              onExit={exitVoice}
-            />
-          ) : (
-            <>
-              <div
-                className={
-                  "chat-transcript" +
-                  (messages.length === 0 ? " chat-transcript--empty" : "")
-                }
-                ref={transcript}
-              >
-                <div className="conversation-content">
-                  {messages.length === 0 ? (
-                    <div className="welcome">
-                      <div className="welcome-emblem" aria-hidden="true">
-                        <LincAvatar />
-                      </div>
-                      <Button
-                        className="btn btn-primary"
-                        disabled={status === "connecting"}
-                        onClick={() => startLive(true)}
-                      >
-                        <Mic size={17} /> Start voice conversation
-                      </Button>
+          <div
+            className={
+              "chat-transcript" +
+              (messages.length === 0 ? " chat-transcript--empty" : "")
+            }
+            ref={transcript}
+          >
+            <div className="conversation-content">
+              {messages.length === 0 ? (
+                voiceVisible ? null : (
+                  <div className="welcome">
+                    <div className="welcome-emblem" aria-hidden="true">
+                      <LincAvatar />
                     </div>
-                  ) : (
-                    <div
-                      className="messages"
-                      role="log"
-                      aria-label="Conversation"
-                      aria-live="polite"
+                    <Button
+                      className="btn btn-primary"
+                      disabled={status === "connecting"}
+                      onClick={() => startLive(true)}
                     >
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={"message " + message.role}
-                        >
-                          {message.role === "assistant" && <LincAvatar />}
-                          <div className="message-bubble">
-                            <span className="sr-only">
-                              {message.role === "assistant"
-                                ? "Linc: "
-                                : "You: "}
-                            </span>
-                            <p>{message.text}</p>
-                          </div>
-                        </div>
-                      ))}
+                      <Mic size={17} /> Start voice conversation
+                    </Button>
+                  </div>
+                )
+              ) : (
+                <div
+                  className="messages"
+                  role="log"
+                  aria-label="Conversation"
+                  aria-live="polite"
+                >
+                  {messages.map((message) => (
+                    <div key={message.id} className={"message " + message.role}>
+                      {message.role === "assistant" && <LincAvatar />}
+                      <div className="message-bubble">
+                        <span className="sr-only">
+                          {message.role === "assistant" ? "Linc: " : "You: "}
+                        </span>
+                        {message.role === "assistant" ? (
+                          <AssistantReply text={message.text} />
+                        ) : (
+                          <p>{message.text}</p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  {status === "thinking" && (
-                    <p className="assistant-working" role="status">
-                      <LoaderCircle className="spin" size={14} /> Linc is
-                      thinking…
-                    </p>
-                  )}
-                  {isConfirmed && (
-                    <CoverageResult
-                      key={state.revision}
-                      profile={state.profile}
-                      example={example}
-                      onLearn={() => setInsight("support")}
-                      onScenario={setActiveScenario}
-                      externalScenario={activeScenario}
-                    />
-                  )}
+                  ))}
                 </div>
-              </div>
-              <div className="composer-area">
+              )}
+              {status === "thinking" &&
+                messages.at(-1)?.role !== "assistant" && (
+                  <div className="assistant-working">
+                    <LincAvatar />
+                    <ThinkingIndicator />
+                  </div>
+                )}
+              {isConfirmed && (
+                <CoverageResult
+                  key={state.revision}
+                  profile={state.profile}
+                  example={example}
+                  onLearn={() => setInsight("support")}
+                  onScenario={setActiveScenario}
+                  externalScenario={activeScenario}
+                />
+              )}
+            </div>
+          </div>
+          <div
+            className={
+              "composer-area" + (voiceVisible ? " composer-area--voice" : "")
+            }
+          >
+            {voiceVisible ? (
+              <VoiceComposer
+                status={status}
+                muted={microphoneMuted}
+                words={livePartial}
+                inputLevel={inputLevel}
+                error={error}
+                notice={transcriptionNotice}
+                onToggleMute={toggleMicrophone}
+                onReconnect={() => void startLive(true)}
+                onExit={exitVoice}
+              />
+            ) : (
+              <>
                 {error && (
                   <div className="connection-error" role="alert">
                     <Info size={16} />
@@ -602,13 +612,13 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                     <ArrowUp size={18} />
                   </Button>
                 </form>
-                <p className="composer-footnote">
-                  <ShieldCheck size={12} /> Educational guidance. Estimates are
-                  not policy quotes.
-                </p>
-              </div>
-            </>
-          )}
+              </>
+            )}
+            <p className="composer-footnote">
+              <ShieldCheck size={12} /> Educational guidance. Estimates are not
+              policy quotes.
+            </p>
+          </div>
         </section>
       </main>
       {insight && (

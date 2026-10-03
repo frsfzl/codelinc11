@@ -7,6 +7,7 @@ export interface LiveHandle {
   start: (voice: boolean) => Promise<boolean>;
   stop: () => void;
   send: (text: string) => void;
+  setMuted: (muted: boolean) => boolean;
 }
 export type LiveStatus =
   | "disconnected"
@@ -27,6 +28,23 @@ interface Props {
   onStatus: (status: LiveStatus, error?: string) => void;
 }
 
+function connectionError(error: unknown, fallback: string) {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : "";
+  if (/quota_exceeded|out of credits/i.test(message)) {
+    console.warn("Linc connection unavailable", { reason: "quota_exceeded" });
+    return "ElevenLabs credits have run out. Live text and voice will be available again after credits are added to the connected ElevenLabs account.";
+  }
+  if (error instanceof DOMException && error.name === "NotAllowedError")
+    return "Microphone access was blocked. Allow microphone access in your browser, or close voice mode to type.";
+  console.warn("Linc connection unavailable", { reason: "connection_failed" });
+  return fallback;
+}
+
 // Each connection owns its callbacks: a late session cannot replace a newer one.
 const LiveConversation = forwardRef<LiveHandle, Props>(
   function LiveConversation(props, ref) {
@@ -39,10 +57,12 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
     const starting = useRef(false);
     const meter = useRef<ReturnType<typeof setInterval> | null>(null);
     const typedMessages = useRef<string[]>([]);
+    const microphoneMuted = useRef(false);
 
     function release() {
       generation.current++;
       starting.current = false;
+      microphoneMuted.current = false;
       controller.current?.abort();
       controller.current = null;
       speech.current?.close();
@@ -121,14 +141,24 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                 const stream = await openSpeechStream(
                   {
                     onPartial(text) {
-                      if (!active() || !text.trim() || alreadyFinal(text))
+                      if (
+                        !active() ||
+                        microphoneMuted.current ||
+                        !text.trim() ||
+                        alreadyFinal(text)
+                      )
                         return;
                       latest.current.onPartialTranscript(
                         [committed, text].filter(Boolean).join(" "),
                       );
                     },
                     onCommitted(text) {
-                      if (!active() || !text.trim() || alreadyFinal(text))
+                      if (
+                        !active() ||
+                        microphoneMuted.current ||
+                        !text.trim() ||
+                        alreadyFinal(text)
+                      )
                         return;
                       committed = [committed, text].filter(Boolean).join(" ");
                       latest.current.onPartialTranscript(committed);
@@ -200,19 +230,30 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                 if (active())
                   latest.current.onStatus(voice ? "listening" : "connected");
               },
-              onDisconnect() {
+              onDisconnect(details) {
                 if (!active()) return;
                 release();
                 resetCaptions();
-                latest.current.onStatus("disconnected");
+                if (details.reason === "error")
+                  latest.current.onStatus(
+                    "error",
+                    connectionError(
+                      details.closeReason || details.message,
+                      "The connection was interrupted. Reconnect to continue; your chat and key details are still here.",
+                    ),
+                  );
+                else latest.current.onStatus("disconnected");
               },
-              onError() {
+              onError(message) {
                 if (!active()) return;
                 release();
                 resetCaptions();
                 latest.current.onStatus(
                   "error",
-                  "The connection was interrupted. Reconnect to continue; your chat and key details are still here.",
+                  connectionError(
+                    message,
+                    "The connection was interrupted. Reconnect to continue; your chat and key details are still here.",
+                  ),
                 );
               },
               onModeChange({ mode }) {
@@ -220,8 +261,7 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
               },
               onAgentTyping(event) {
                 if (!active()) return;
-                if (event.is_typing)
-                  latest.current.onStatus("thinking");
+                if (event.is_typing) latest.current.onStatus("thinking");
                 else if (!voice) latest.current.onStatus("connected");
               },
               onMessage(event) {
@@ -241,7 +281,8 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                   finalized = event.message;
                   finalizedAt = Date.now();
                   committed = "";
-                  latest.current.onPartialTranscript(event.message);
+                  // The finalized utterance now lives in the shared chat log.
+                  latest.current.onPartialTranscript("");
                 } else {
                   committed = "";
                   latest.current.onPartialTranscript("");
@@ -277,18 +318,23 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
             if (voice)
               meter.current = setInterval(() => {
                 if (active())
-                  latest.current.onInputLevel(connected.getInputVolume());
+                  latest.current.onInputLevel(
+                    microphoneMuted.current ? 0 : connected.getInputVolume(),
+                  );
               }, 100);
             return true;
-          } catch {
+          } catch (error) {
             if (!active()) return false;
             release();
             resetCaptions();
             latest.current.onStatus(
               "error",
-              voice
-                ? "Voice couldn’t connect. Check microphone permission and try again, or close voice mode to type."
-                : "Live chat couldn’t connect. Please try again.",
+              connectionError(
+                error,
+                voice
+                  ? "Voice couldn’t connect. Check microphone permission and try again, or close voice mode to type."
+                  : "Live chat couldn’t connect. Please try again.",
+              ),
             );
             return false;
           } finally {
@@ -300,6 +346,19 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
           resetCaptions();
           latest.current.onTranscriptionNotice("");
           latest.current.onStatus("disconnected");
+        },
+        setMuted(muted) {
+          const connected = session.current;
+          if (!connected?.isOpen() || connected.type !== "voice") return false;
+          microphoneMuted.current = muted;
+          connected.setMicMuted(muted);
+          if (muted) {
+            speech.current?.mute();
+            latest.current.onInputLevel(0);
+          } else {
+            speech.current?.unmute();
+          }
+          return true;
         },
         send(text) {
           if (!session.current?.isOpen()) return;

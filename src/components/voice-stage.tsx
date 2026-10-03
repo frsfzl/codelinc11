@@ -1,43 +1,46 @@
 "use client";
 import { useEffect, useRef, type CSSProperties } from "react";
-import { LoaderCircle, Mic, Pause, Play, X } from "lucide-react";
-import { LincAvatar } from "./linc-avatar";
+import { LoaderCircle, Mic, MicOff, X } from "lucide-react";
 import type { LiveStatus } from "./live-conversation";
 
-export function VoiceStage({
+export function VoiceComposer({
   status,
-  paused,
+  muted,
   words,
   inputLevel,
-  reply,
   error,
   notice,
-  onPause,
-  onResume,
+  onToggleMute,
+  onReconnect,
   onExit,
 }: {
   status: LiveStatus;
-  paused: boolean;
+  muted: boolean;
   words: string;
   inputLevel: number;
-  reply?: string;
   error: string;
   notice: string;
-  onPause: () => void;
-  onResume: () => void;
+  onToggleMute: () => void;
+  onReconnect: () => void;
   onExit: () => void;
 }) {
   const exit = useRef<HTMLButtonElement>(null);
   const captions = useRef<HTMLParagraphElement>(null);
   const connecting = status === "connecting";
   const offline = status === "disconnected" || status === "error";
-  const talking = !paused && !offline && !connecting && inputLevel > 0.025;
-  const label = paused
-    ? "Paused · microphone off"
-    : connecting
-      ? "Connecting your microphone…"
-      : offline
-        ? "Voice is disconnected"
+  const talking = !muted && !offline && !connecting && inputLevel > 0.025;
+  const inactive = muted || offline;
+  const microphoneLabel = offline
+    ? "Reconnect voice conversation"
+    : muted
+      ? "Unmute microphone"
+      : "Mute microphone";
+  const label = connecting
+    ? "Connecting your microphone…"
+    : offline
+      ? "Voice is disconnected"
+      : muted
+        ? "Microphone muted"
         : talking
           ? "Listening to you"
           : status === "speaking"
@@ -54,10 +57,15 @@ export function VoiceStage({
   }, [words]);
   return (
     <div
-      className={`voice-stage${talking ? " is-talking" : ""}${paused ? " is-paused" : ""}`}
+      className={`voice-composer${talking ? " is-talking" : ""}${inactive ? " is-paused" : ""}`}
+      role="group"
+      aria-label="Voice message controls"
       style={
         {
-          "--voice-level": Math.min(1, Math.max(0, inputLevel) * 4),
+          "--voice-level":
+            inactive || connecting
+              ? 0
+              : Math.min(1, Math.max(0, inputLevel) * 4),
         } as CSSProperties
       }
       onKeyDown={(event) => {
@@ -67,92 +75,73 @@ export function VoiceStage({
         }
       }}
     >
-      <div className="voice-stage-top">
-        <span>VOICE WITH LINC</span>
-        <button
-          ref={exit}
-          className="voice-exit"
-          type="button"
-          aria-label="Exit voice mode and return to text"
-          onClick={onExit}
+      <div className="voice-words">
+        <p
+          ref={captions}
+          className={words ? "has-words" : ""}
+          aria-label="Your live transcript"
         >
-          <X size={21} />
-        </button>
+          {words ||
+            (connecting
+              ? "Connecting your microphone…"
+              : offline
+                ? "Tap the microphone to reconnect."
+                : muted
+                  ? "Tap the microphone to unmute."
+                  : status === "speaking"
+                    ? "Linc is speaking…"
+                    : status === "thinking"
+                      ? "Message sent. Linc is thinking…"
+                      : "Speak naturally. Your words will appear here.")}
+        </p>
       </div>
-      <div className="voice-stage-content">
-        <div className="voice-reply" aria-live="polite">
-          {reply && (
-            <>
-              <LincAvatar />
-              <p>{reply}</p>
-            </>
-          )}
-        </div>
+      <div className="voice-controls">
         <div className="voice-orb-wrap">
           <button
             type="button"
             className="voice-orb"
             disabled={connecting}
-            aria-label={
-              paused || offline
-                ? "Resume voice conversation"
-                : "Pause voice conversation"
-            }
-            onClick={paused || offline ? onResume : onPause}
+            aria-label={microphoneLabel}
+            aria-pressed={muted}
+            title={microphoneLabel}
+            onClick={offline ? onReconnect : onToggleMute}
           >
             {connecting ? (
-              <LoaderCircle className="spin" size={38} />
+              <LoaderCircle className="spin" size={28} />
+            ) : inactive ? (
+              <MicOff size={28} strokeWidth={1.5} />
             ) : (
-              <Mic size={38} strokeWidth={1.5} />
+              <Mic size={28} strokeWidth={1.5} />
             )}
           </button>
         </div>
-        <p className="voice-state" role="status">
-          {label}
-        </p>
-        <div className="voice-words">
-          <p
-            ref={captions}
-            className={words ? "has-words" : ""}
-            aria-label="Your live transcript"
-          >
-            {words ||
-              (paused
-                ? "Your conversation is saved here."
-                : connecting
-                  ? "One moment…"
-                  : offline
-                    ? "Reconnect whenever you’re ready."
-                    : "Your words will appear here as you speak.")}
-          </p>
-        </div>
-      </div>
-      <div className="voice-stage-bottom">
-        {error && (
-          <p className="voice-notice" role="alert">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p className="voice-notice" role="status">
-            {notice}
-          </p>
-        )}
         <button
-          className="voice-pause"
+          ref={exit}
+          className="voice-exit"
           type="button"
-          disabled={connecting}
-          onClick={paused || offline ? onResume : onPause}
+          aria-label="Exit voice mode and return to text"
+          title="Return to typing"
+          onClick={onExit}
         >
-          {paused || offline ? <Play size={15} /> : <Pause size={15} />}
-          {paused
-            ? "Resume conversation"
-            : offline
-              ? "Reconnect"
-              : "Pause conversation"}
+          <X size={21} />
         </button>
-        <p>Responds automatically when you finish speaking.</p>
       </div>
+      <p className="voice-state" role="status">
+        {label}
+      </p>
+      <p className="voice-hint">
+        Sends automatically when you finish speaking.
+      </p>
+      {error && (
+        <p className="voice-notice" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="voice-notice" role="status">
+          {notice}
+        </p>
+      )}
     </div>
   );
 }
