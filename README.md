@@ -25,9 +25,9 @@ The browser tests run against an isolated production server on port 3001 with th
 ## Customer experience
 
 - **Homepage:** a concise, single-screen mission and four offerings with clear calls to begin. Fits desktop, the 847 × 765 compact browser, and phone viewports without hiding overflowing content.
-- **Assessment:** a pale-blue chat surface with a matching composer and a “Key details” sidebar that fills with captured information; collapsed by default on phones. Unknown values have no placeholder rows.
+- **Assessment:** a blue gradient matching the homepage, a rounded composer, and a white “Key details” sidebar that fills the available desktop height. New or changed details animate, with updating/updated indicators. The sidebar collapses on phones; its expanded content scrolls within a bounded height.
 - **Comparison popups:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
-- **Dictation:** the composer microphone records up to 60 seconds, transcribes with ElevenLabs Scribe v2, and appends the text to your editable draft. Nothing sends automatically.
+- **Voice mode:** either microphone button replaces the text chat with a blue gradient, an input-responsive glowing microphone, Linc’s latest reply, and live words. The agent detects completed statements and responds automatically. Pause/Resume keeps captured details and chat; X stops audio and returns to typing. The microphone remains available after ending a session.
 - **Conversation-only intake:** Linc asks the relevant questions, captures natural-language answers, and asks for a quick spoken or typed confirmation of the recap. No intake form or review buttons. Unknown values stay unknown and zero means an explicit exclusion.
 - **Recommendation:** after confirmation, the exact calculation appears automatically and Linc explains the coverage target, support horizon, relevant policy direction and tradeoffs. Corrections in chat invalidate the previous estimate until reconfirmed.
 - **Explainable result:** total needs, resources already in place, additional coverage, line items and assumptions.
@@ -39,21 +39,15 @@ Guided mode uses deterministic questions and a limited amount parser; it is **no
 
 ## ElevenLabs speech-to-text
 
-The small microphone beside the message field is independent of the full voice conversation. Click it, allow microphone access, speak, and press stop. Review or edit the transcript before sending. Cancel discards the recording or ignores an in-flight result. Microphone tracks are released on stop, cancel, and leaving the page. Permission denial, silence, provider failures, and overly long transcripts preserve your existing draft.
+Both microphone buttons start the full voice conversation. ElevenLabs Scribe v2 Realtime supplies partial words while the agent’s own turn detector submits the spoken statement automatically. Partial captions are display-only; they are never resent to the agent, so a spoken answer is not duplicated. Caption failure leaves the agent working and offers a pause/resume retry. The microphone glow follows measured input volume.
 
-For normal hosting, set `ELEVENLABS_API_KEY` in the server-only `.env.local` and set `APP_ORIGIN` to the exact browser origin, then restart the server. No agent ID is needed for dictation. The Node endpoint `/api/transcribe` sends multipart audio to ElevenLabs using `model_id=scribe_v2`; no credentials reach the browser. Uploads are limited to 5 MiB, provider calls time out, and same-origin checks plus a small process-local request/concurrency limit guard this local demo.
+The Node endpoint /api/speech-token issues a short-lived, single-use realtime Scribe token. The API key stays on the server. Tokens and signed session URLs are not stored in the app or logs. Same-origin checks, no-store responses, timeouts, and process-local rate/concurrency limits protect this local demo. Live captions use an additional Scribe stream alongside the agent, so both services contribute to provider usage.
 
-For local development with an already authenticated ElevenLabs CLI, a bridge supports both dictation and agent session signing:
+For normal hosting, set ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID and APP_ORIGIN in server-only environment variables. Local development also supports the already authenticated native ElevenLabs CLI through ELEVENLABS_USE_CLI=true and ELEVENLABS_CLI_PATH. CLI mode is restricted to loopback origins and invokes the native executable directly without a shell. This workstation’s ignored .env.local enables that bridge.
 
-```dotenv
-APP_ORIGIN=http://127.0.0.1:3000
-ELEVENLABS_USE_CLI=true
-ELEVENLABS_CLI_PATH=/absolute/path/to/native/elevenlabs-executable
-```
+Pause disconnects both streams and stops audio. Resume opens a fresh provider session with the current profile and up to 24 recent messages; it does not restore the provider’s original session ID. X exits voice and preserves the in-memory chat and typed draft. Reloading the page clears them. The legacy batch /api/transcribe endpoint remains available but is no longer used by the conversation microphone.
 
-On Windows use the actual `elevenlabs.exe`, not the npm `.cmd` or PowerShell shim. The server invokes it directly without a shell, uses its existing login, and removes its temporary audio file afterward. CLI mode is restricted to loopback origins; use an API key for a hosted deployment. This workstation's ignored `.env.local` enables that local bridge. A synthetic audio sample was successfully recorded with Chrome's native MediaRecorder, transcribed through the app's endpoint using the authenticated CLI, and returned to the editable draft without auto-sending.
-
-The app does not persist audio or transcripts. ElevenLabs processes the recording under the account's provider retention settings; this integration does not request enterprise-only zero-retention mode. Canceling an already submitted request does not delete provider records. See the [official speech-to-text API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).
+The app does not persist audio or transcripts. Provider processing and retention remain subject to account settings. See the [realtime transcription guide](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/client-side-streaming).
 
 ## Live voice and text
 
@@ -61,13 +55,13 @@ The app does not persist audio or transcripts. ElevenLabs processes the recordin
 2. Configure the `profile_context` dynamic variable with a default of `{}` and `opening_message` with a greeting introducing Linc. Enable text-only conversations so the same agent supports typing without microphone access. Choose a voice/model in the ElevenLabs dashboard; no voice ID or model is hard-coded in this repo.
 3. Restrict the agent's allowed origins to your development origin. Configure provider retention and recording settings appropriate to the demo before using real information.
 4. Copy `.env.example` to `.env.local`, set `ELEVENLABS_AGENT_ID` and either the server-only `ELEVENLABS_API_KEY` or the local authenticated CLI settings above, and set `APP_ORIGIN` to the exact URL origin you open. Restart the server. Do not put secrets in `NEXT_PUBLIC_` variables or commit `.env.local`.
-5. Type and send a message to connect automatically, or select **Connect live text** or **Start voice conversation**. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
+5. Type and send a message to connect automatically, or select **Start voice conversation** or the composer microphone. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
 
-The integration uses `@elevenlabs/react` 1.16 with `ConversationProvider`. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer corrections cannot be overwritten by stale requests. `review_profile` returns a recap tied to the current revision. `calculate_needs` requires a new affirmative user reply after that recap, quoted exactly; old or invented confirmations are rejected. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
+The integration uses `@elevenlabs/client` 1.26 with explicitly owned, cancelable session lifecycles. Late connection callbacks and tool calls from ended sessions are ignored. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer corrections cannot be overwritten by stale requests. `review_profile` returns a recap tied to the current revision. `calculate_needs` requires a new affirmative user reply after that recap, quoted exactly; old or invented confirmations are rejected. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
 
 The private **Linc — CodeLinc 11** agent is configured in ElevenLabs with six client tools, the Bella voice, GPT-4.1 mini, sequential tool calls, text/voice support, and localhost access restrictions. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Voice recording is disabled in the agent settings and conversation retention is seven days.
 
-An initial live-chat check exposed a startup issue before any provider conversation began; the adapter loading was corrected. Further live sessions and automated tests were skipped at the user's request, so end-to-end live agent behavior remains unverified. Speech-to-text was separately verified against the real provider before these changes. Provider processing/retention is separate from the app's in-memory state; refreshing this page does not delete provider records.
+Automated tests and live microphone sessions were skipped for these changes at the user’s request. The new realtime captions, automatic voice turns, and pause/reconnect flow have not been exercised end to end. Earlier batch transcription was separately verified before this change. Provider processing/retention is separate from the app's in-memory state; refreshing this page does not delete provider records.
 
 Official integration references: [React SDK](https://elevenlabs.io/docs/eleven-agents/libraries/react), [client tools](https://elevenlabs.io/docs/eleven-agents/customization/tools/client-tools).
 
@@ -98,7 +92,9 @@ src/app/api/transcribe/route.ts      Bounded speech-to-text endpoint
 src/components/assessment.tsx        In-memory flow and validated client tools
 src/components/key-highlights.tsx    Captured facts only
 src/components/insight-view.tsx      Popup charts and policy exploration
-src/components/use-dictation.ts      Recording, cancellation and transcript review
+src/components/voice-stage.tsx       Live words, glowing microphone, pause and exit
+src/app/api/speech-token/route.ts     Single-use realtime transcription tokens
+src/lib/realtime-speech.ts            Cancelable realtime caption stream
 src/lib/conversation-review.ts       Spoken/typed recap and confirmation guard
 src/components/coverage-result.tsx   Explanation and independent scenarios
 src/components/education.tsx         Term/whole-life education

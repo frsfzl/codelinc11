@@ -12,6 +12,7 @@
     "format:check": "prettier --check src tests docs *.ts *.json *.yml *.md"
   },
   "dependencies": {
+    "@elevenlabs/client": "1.26.0",
     "@elevenlabs/react": "1.16.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

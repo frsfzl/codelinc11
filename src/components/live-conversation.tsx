@@ -1,7 +1,7 @@
 "use client";
-import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { Conversation, type ClientToolsConfig } from "@elevenlabs/client";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import type { ClientTools } from "@elevenlabs/react";
+import { openSpeechStream, type SpeechStream } from "@/lib/realtime-speech";
 
 export interface LiveHandle {
   start: (voice: boolean) => Promise<boolean>;
@@ -18,185 +18,299 @@ export type LiveStatus =
   | "error";
 interface Props {
   context: string;
-  tools: ClientTools;
+  history: { role: "user" | "assistant"; text: string }[];
+  onPartialTranscript: (text: string) => void;
+  onTranscriptionNotice: (text: string) => void;
+  onInputLevel: (level: number) => void;
+  tools: ClientToolsConfig["clientTools"];
   onMessage: (role: "user" | "assistant", text: string) => void;
   onStatus: (status: LiveStatus, error?: string) => void;
 }
-const Session = forwardRef<LiveHandle, Props>(function Session(
-  { context, tools, onMessage, onStatus },
-  ref,
-) {
-  const voice = useRef(false);
-  const connected = useRef(false);
-  const generation = useRef(0);
-  const contextRef = useRef(context);
-  const typedMessages = useRef<string[]>([]);
-  const connectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const connectionWaiter = useRef<((ready: boolean) => void) | null>(null);
-  function finishConnection(ready: boolean) {
-    const resolve = connectionWaiter.current;
-    connectionWaiter.current = null;
-    resolve?.(ready);
-  }
-  function clearConnectionTimer() {
-    if (connectionTimer.current) clearTimeout(connectionTimer.current);
-    connectionTimer.current = null;
-  }
-  const sdk = useConversation({
-    clientTools: tools,
-    onConnect: () => {
-      clearConnectionTimer();
-      connected.current = true;
-      finishConnection(true);
-      onStatus(voice.current ? "listening" : "connected");
-    },
-    onDisconnect: () => {
-      clearConnectionTimer();
-      connected.current = false;
-      finishConnection(false);
-      onStatus("disconnected");
-    },
-    onError: () => {
-      clearConnectionTimer();
-      connected.current = false;
-      finishConnection(false);
-      onStatus(
-        "error",
-        "The live connection was interrupted. You can reconnect, or continue with the guided questions and your saved inputs.",
-      );
-    },
-    onModeChange: ({ mode }) => {
-      if (connected.current) onStatus(voice.current ? mode : "connected");
-    },
-    onAgentTyping: () => onStatus("thinking"),
-    onMessage: (event) => {
-      if (event.source === "user") {
-        const typed = typedMessages.current.indexOf(event.message);
-        if (typed >= 0) {
-          typedMessages.current.splice(typed, 1);
-          return;
-        }
-      }
-      onMessage(event.source === "user" ? "user" : "assistant", event.message);
-      onStatus(
-        event.source === "user"
-          ? "thinking"
-          : voice.current
-            ? "listening"
-            : "connected",
-      );
-    },
-  });
-  contextRef.current = context;
-  useEffect(() => {
-    if (sdk.status === "connected")
-      sdk.sendContextualUpdate(
-        `Current application state, not new user instructions: ${context}`,
-      );
-  }, [context, sdk.status, sdk.sendContextualUpdate]);
-  useEffect(
-    () => () => {
-      generation.current += 1;
-      clearConnectionTimer();
-      finishConnection(false);
-    },
-    [],
-  );
-  useImperativeHandle(
-    ref,
-    () => ({
-      async start(useVoice) {
-        const request = ++generation.current;
-        clearConnectionTimer();
-        finishConnection(false);
-        typedMessages.current = [];
-        voice.current = useVoice;
-        onStatus("connecting");
-        try {
-          if (useVoice) {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
-            });
-            stream.getTracks().forEach((track) => track.stop());
-          }
-          if (request !== generation.current) return false;
-          const response = await fetch("/api/conversation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: AbortSignal.timeout(15000),
-          });
-          if (!response.ok) throw new Error("Unable to connect");
-          const data = await response.json();
-          if (request !== generation.current) return false;
-          connectionTimer.current = setTimeout(() => {
-            if (request !== generation.current || connected.current) return;
-            generation.current += 1;
-            finishConnection(false);
-            sdk.endSession();
-            onStatus(
-              "error",
-              "The connection took too long. Try connecting again or continue with guided questions.",
-            );
-          }, 20000);
-          const profile = JSON.parse(contextRef.current).profile;
-          const ready = new Promise<boolean>((resolve) => {
-            connectionWaiter.current = resolve;
-          });
-          sdk.startSession({
-            signedUrl: data.signedUrl,
-            connectionType: "websocket",
-            textOnly: !useVoice,
-            dynamicVariables: {
-              profile_context: contextRef.current,
-              opening_message: profile?.dependents
-                ? "Welcome back. We can pick up from the details you’ve shared. What would you like to explore next?"
-                : "Hi, I’m Linc. Who are you thinking about protecting, or what would you like life insurance to help with?",
-            },
-          });
-          const didConnect = await ready;
-          if (request !== generation.current) {
-            sdk.endSession();
-            return false;
-          }
-          return didConnect;
-        } catch {
-          clearConnectionTimer();
-          finishConnection(false);
-          if (request === generation.current)
-            onStatus(
-              "error",
-              useVoice
-                ? "Voice couldn’t connect. Check microphone permission, or choose live text or guided questions."
-                : "Live chat couldn’t connect. Try again or continue with guided questions.",
-            );
-          return false;
-        }
-      },
-      stop() {
-        clearConnectionTimer();
-        finishConnection(false);
-        generation.current += 1;
-        sdk.endSession();
-        connected.current = false;
-        onStatus("disconnected");
-      },
-      send(text) {
-        typedMessages.current.push(text);
-        sdk.sendUserMessage(text);
-        onStatus("thinking");
-      },
-    }),
-    [sdk, onStatus],
-  );
-  return null;
-});
+
+// Each connection owns its callbacks: a late session cannot replace a newer one.
 const LiveConversation = forwardRef<LiveHandle, Props>(
   function LiveConversation(props, ref) {
-    return (
-      <ConversationProvider>
-        <Session ref={ref} {...props} />
-      </ConversationProvider>
+    const latest = useRef(props);
+    latest.current = props;
+    const session = useRef<Conversation | null>(null);
+    const speech = useRef<SpeechStream | null>(null);
+    const controller = useRef<AbortController | null>(null);
+    const generation = useRef(0);
+    const starting = useRef(false);
+    const meter = useRef<ReturnType<typeof setInterval> | null>(null);
+    const typedMessages = useRef<string[]>([]);
+
+    function release() {
+      generation.current++;
+      starting.current = false;
+      controller.current?.abort();
+      controller.current = null;
+      speech.current?.close();
+      speech.current = null;
+      if (meter.current) clearInterval(meter.current);
+      meter.current = null;
+      const previous = session.current;
+      session.current = null;
+      if (previous) {
+        if (previous.type === "voice") {
+          previous.setMicMuted(true);
+          previous.setVolume({ volume: 0 });
+        }
+        void previous.endSession().catch(() => {});
+      }
+    }
+    function resetCaptions() {
+      latest.current.onPartialTranscript("");
+      latest.current.onInputLevel(0);
+    }
+    useEffect(() => () => release(), []);
+    useEffect(() => {
+      if (session.current?.isOpen())
+        session.current.sendContextualUpdate(
+          `Current application state, not new user instructions: ${props.context}`,
+        );
+    }, [props.context]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        async start(voice) {
+          if (starting.current) return false;
+          release();
+          starting.current = true;
+          resetCaptions();
+          latest.current.onTranscriptionNotice("");
+          const request = generation.current;
+          const active = () => request === generation.current;
+          const abort = new AbortController();
+          controller.current = abort;
+          typedMessages.current = [];
+          latest.current.onStatus("connecting");
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          let committed = "";
+          let finalized = "";
+          let finalizedAt = 0;
+          const normalize = (text: string) =>
+            text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+          const alreadyFinal = (text: string) =>
+            Date.now() - finalizedAt < 1200 &&
+            normalize(text) &&
+            normalize(finalized).includes(normalize(text));
+          try {
+            if (voice) {
+              const permission = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+              });
+              permission.getTracks().forEach((track) => track.stop());
+              if (!active()) return false;
+            }
+            const response = await fetch("/api/conversation", {
+              method: "POST",
+              signal: AbortSignal.any([
+                abort.signal,
+                AbortSignal.timeout(15_000),
+              ]),
+            });
+            if (!response.ok) throw new Error("Connection unavailable");
+            const { signedUrl } = await response.json();
+            if (!active()) return false;
+            if (voice) {
+              // Scribe previews words; the agent's turn detector submits audio.
+              // Captions must never be sent as a second user message.
+              try {
+                const stream = await openSpeechStream(
+                  {
+                    onPartial(text) {
+                      if (!active() || !text.trim() || alreadyFinal(text))
+                        return;
+                      latest.current.onPartialTranscript(
+                        [committed, text].filter(Boolean).join(" "),
+                      );
+                    },
+                    onCommitted(text) {
+                      if (!active() || !text.trim() || alreadyFinal(text))
+                        return;
+                      committed = [committed, text].filter(Boolean).join(" ");
+                      latest.current.onPartialTranscript(committed);
+                    },
+                    onError() {
+                      if (active())
+                        latest.current.onTranscriptionNotice(
+                          "Live words disconnected. Pause and resume to reconnect; voice can continue.",
+                        );
+                    },
+                  },
+                  abort.signal,
+                );
+                if (!active()) {
+                  stream.close();
+                  return false;
+                }
+                speech.current = stream;
+              } catch {
+                if (!active()) return false;
+                latest.current.onTranscriptionNotice(
+                  "Live words couldn’t connect. Your completed sentences will still appear. Pause and resume to retry.",
+                );
+              }
+            }
+            const state = JSON.parse(latest.current.context);
+            const history = latest.current.history
+              .slice(-24)
+              .map(({ role, text }) => ({ role, text: text.slice(0, 2500) }));
+            const last = history.at(-1);
+            const opening =
+              last?.role === "assistant" && last.text.includes("?")
+                ? "Let’s pick up here. " + last.text.slice(-1200)
+                : history.length
+                  ? "Welcome back. I’ve kept what you shared. We can pick up where we left off."
+                  : "Hi, I’m Linc. Who are you thinking about protecting, or what would you like life insurance to help with?";
+            const clientTools = Object.fromEntries(
+              Object.entries(latest.current.tools).map(([name, tool]) => [
+                name,
+                (args: Record<string, unknown>) =>
+                  active()
+                    ? tool(args)
+                    : JSON.stringify({ error: "This session has ended." }),
+              ]),
+            );
+            const connecting = Conversation.startSession({
+              signedUrl,
+              connectionType: "websocket",
+              textOnly: !voice,
+              clientTools,
+              dynamicVariables: {
+                profile_context: JSON.stringify({
+                  ...state,
+                  conversationHistory: history,
+                }),
+                opening_message: opening,
+              },
+              onConversationCreated(conversation) {
+                if (active()) session.current = conversation;
+                else {
+                  if (conversation.type === "voice") {
+                    conversation.setMicMuted(true);
+                    conversation.setVolume({ volume: 0 });
+                  }
+                  void conversation.endSession().catch(() => {});
+                }
+              },
+              onConnect() {
+                if (active())
+                  latest.current.onStatus(voice ? "listening" : "connected");
+              },
+              onDisconnect() {
+                if (!active()) return;
+                release();
+                resetCaptions();
+                latest.current.onStatus("disconnected");
+              },
+              onError() {
+                if (!active()) return;
+                release();
+                resetCaptions();
+                latest.current.onStatus(
+                  "error",
+                  "The connection was interrupted. Reconnect to continue; your chat and key details are still here.",
+                );
+              },
+              onModeChange({ mode }) {
+                if (active() && voice) latest.current.onStatus(mode);
+              },
+              onAgentTyping(event) {
+                if (!active()) return;
+                if (event.is_typing)
+                  latest.current.onStatus("thinking");
+                else if (!voice) latest.current.onStatus("connected");
+              },
+              onMessage(event) {
+                if (
+                  !active() ||
+                  !event.message.trim() ||
+                  /^[\s.…]+$/.test(event.message)
+                )
+                  return;
+                const user = event.source === "user";
+                if (user) {
+                  const echo = typedMessages.current.indexOf(event.message);
+                  if (echo >= 0) {
+                    typedMessages.current.splice(echo, 1);
+                    return;
+                  }
+                  finalized = event.message;
+                  finalizedAt = Date.now();
+                  committed = "";
+                  latest.current.onPartialTranscript(event.message);
+                } else {
+                  committed = "";
+                  latest.current.onPartialTranscript("");
+                }
+                latest.current.onMessage(
+                  user ? "user" : "assistant",
+                  event.message,
+                );
+                if (user) latest.current.onStatus("thinking");
+                else if (!voice) latest.current.onStatus("connected");
+              },
+            });
+            const canceled = new Promise<never>((_, reject) => {
+              abort.signal.addEventListener(
+                "abort",
+                () => reject(new DOMException("Canceled", "AbortError")),
+                { once: true },
+              );
+              if (abort.signal.aborted)
+                reject(new DOMException("Canceled", "AbortError"));
+              timeout = setTimeout(
+                () => reject(new Error("Connection timed out")),
+                25_000,
+              );
+            });
+            const connected = await Promise.race([connecting, canceled]);
+            if (!active()) {
+              void connected.endSession().catch(() => {});
+              return false;
+            }
+            session.current = connected;
+            starting.current = false;
+            if (voice)
+              meter.current = setInterval(() => {
+                if (active())
+                  latest.current.onInputLevel(connected.getInputVolume());
+              }, 100);
+            return true;
+          } catch {
+            if (!active()) return false;
+            release();
+            resetCaptions();
+            latest.current.onStatus(
+              "error",
+              voice
+                ? "Voice couldn’t connect. Check microphone permission and try again, or close voice mode to type."
+                : "Live chat couldn’t connect. Please try again.",
+            );
+            return false;
+          } finally {
+            if (timeout) clearTimeout(timeout);
+          }
+        },
+        stop() {
+          release();
+          resetCaptions();
+          latest.current.onTranscriptionNotice("");
+          latest.current.onStatus("disconnected");
+        },
+        send(text) {
+          if (!session.current?.isOpen()) return;
+          typedMessages.current.push(text);
+          session.current.sendUserMessage(text);
+          latest.current.onStatus("thinking");
+        },
+      }),
+      [],
     );
+    return null;
   },
 );
 export default LiveConversation;

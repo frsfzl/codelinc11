@@ -1,5 +1,7 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import {
+  Check,
   LoaderCircle,
   ChartNoAxesCombined,
   HeartHandshake,
@@ -30,14 +32,28 @@ export function KeyHighlights({
   processing?: boolean;
 }) {
   const highlights = getHighlights(state);
+  const previousRevision = useRef(state.revision);
+  const [updated, setUpdated] = useState(false);
+  useEffect(() => {
+    if (previousRevision.current === state.revision) return;
+    previousRevision.current = state.revision;
+    setUpdated(true);
+    const timer = setTimeout(() => setUpdated(false), 2200);
+    return () => clearTimeout(timer);
+  }, [state.revision]);
   return (
     <div className="key-highlights" aria-busy={processing}>
-      {processing && (
-        <p className="highlights-caption highlights-loading" role="status">
-          <LoaderCircle size={14} className="spin" />
-          Updating key details…
-        </p>
-      )}
+      <div className="highlight-progress" role="status" aria-live="polite">
+        {processing ? (
+          <>
+            <LoaderCircle size={14} className="spin" /> Updating key details…
+          </>
+        ) : updated ? (
+          <>
+            <Check size={14} /> Key details updated
+          </>
+        ) : null}
+      </div>
       {example && <span className="example-badge">FICTIONAL EXAMPLE</span>}
       {highlights.length ? (
         <div className="highlight-list">
@@ -54,8 +70,13 @@ export function KeyHighlights({
                   <Icon size={16} />
                   <span>{item.title}</span>
                 </div>
-                <strong>{item.value}</strong>
-                <small>{item.detail}</small>
+                <div
+                  className="highlight-value"
+                  key={`${item.value}:${item.detail}`}
+                >
+                  <strong>{item.value}</strong>
+                  <small>{item.detail}</small>
+                </div>
               </button>
             );
           })}

@@ -3,15 +3,14 @@ import LiveConversation from "./live-conversation";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight,
   ArrowUp,
-  AudioLines,
   ChevronDown,
   Info,
   LoaderCircle,
   Mic,
+  Pause,
+  Play,
   ShieldCheck,
-  Sprout,
   Square,
   Users,
 } from "lucide-react";
@@ -28,7 +27,7 @@ import {
 } from "@/lib/conversation-review";
 import { KeyHighlights } from "./key-highlights";
 import { InsightView } from "./insight-view";
-import { useDictation } from "./use-dictation";
+import { VoiceStage } from "./voice-stage";
 import type { HighlightKey } from "@/lib/highlights";
 import type { LiveHandle, LiveStatus } from "./live-conversation";
 import {
@@ -61,13 +60,7 @@ const stateSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
 });
 
-export function Assessment({
-  liveEnabled,
-  speechEnabled,
-}: {
-  liveEnabled: boolean;
-  speechEnabled: boolean;
-}) {
+export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   const params = useSearchParams();
   const initialIntent = intentLabels[params.get("intent") ?? ""] ?? "";
   const [state, setState] = useState<ProfileState>(() => ({
@@ -84,13 +77,6 @@ export function Assessment({
   const sequence = useRef(0);
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const dictation = useDictation(speechEnabled, (text) => {
-    const next = [draft.trim(), text].filter(Boolean).join(" ");
-    if (next.length > 1000)
-      return "That message is a little long. Try recording a shorter answer; your existing draft is unchanged.";
-    setDraft(next);
-    requestAnimationFrame(() => input.current?.focus());
-  });
   const pendingReview = useRef<ConversationReview | null>(null);
   const latestUser = useRef<{ id: number; text: string } | null>(null);
   const [insight, setInsight] = useState<HighlightKey | null>(
@@ -101,10 +87,12 @@ export function Assessment({
   const [status, setStatus] = useState<LiveStatus>("disconnected");
   const [error, setError] = useState("");
   const [liveMode, setLiveMode] = useState(false);
-  const cancelDictation = dictation.cancel;
-  useEffect(() => {
-    if (insight) cancelDictation();
-  }, [insight, cancelDictation]);
+  const [paused, setPaused] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+  const [livePartial, setLivePartial] = useState("");
+  const [transcriptionNotice, setTranscriptionNotice] = useState("");
+  const [voiceVisible, setVoiceVisible] = useState(false);
+  const [inputLevel, setInputLevel] = useState(0);
   const [activeScenario, setActiveScenario] = useState<Scenario>({});
   const live = useRef<LiveHandle>(null);
   const transcript = useRef<HTMLDivElement>(null);
@@ -143,7 +131,7 @@ export function Assessment({
         panel.getBoundingClientRect().top -
         24;
     else panel.scrollTop = panel.scrollHeight;
-  }, [messages.length, isConfirmed]);
+  }, [messages.length, isConfirmed, voiceVisible]);
   const tools = useMemo(() => {
     function guarded(work: (args: Record<string, unknown>) => unknown) {
       return (args: Record<string, unknown>) => {
@@ -372,7 +360,7 @@ export function Assessment({
   }
   async function send() {
     const text = draft.trim();
-    if (!text || status === "connecting" || dictation.busy) return;
+    if (!text || status === "connecting") return;
     if (liveEnabled && !liveActive && !example) {
       const connected = await startLive(false);
       if (!connected) return;
@@ -383,7 +371,6 @@ export function Assessment({
     else guidedAnswer(text);
   }
   async function startLive(voice: boolean) {
-    dictation.cancel();
     if (!liveEnabled) {
       setError(
         "Live conversation isn’t connected in this preview. You can answer the guided questions by typing.",
@@ -397,18 +384,28 @@ export function Assessment({
       return false;
     }
     setError("");
+    setPaused(false);
+    setVoiceMode(voice);
+    setVoiceVisible(voice);
     setLiveMode(true);
     return live.current.start(voice);
   }
-  function stopLive() {
+  function stopLive(pause = false) {
     live.current?.stop();
     setLiveMode(false);
-    addMessage(
-      "assistant",
-      "Conversation paused. You can keep typing or start voice again whenever you’re ready.",
-    );
+    setPaused(pause);
+    setLivePartial("");
+    setTranscriptionNotice("");
   }
 
+  function exitVoice() {
+    stopLive();
+    setVoiceVisible(false);
+    requestAnimationFrame(() => input.current?.focus());
+  }
+  const lastReply = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant")?.text;
   return (
     <div className="assessment-page">
       <header className="site-header">
@@ -429,10 +426,7 @@ export function Assessment({
               state={state}
               example={example}
               processing={status === "thinking"}
-              onOpen={(key) => {
-                dictation.cancel();
-                setInsight(key);
-              }}
+              onOpen={setInsight}
             />
           </details>
         </aside>
@@ -440,229 +434,181 @@ export function Assessment({
           <h1 id="chat-title" className="sr-only">
             Conversation with Linc
           </h1>
-          <div
-            className={`chat-transcript${messages.length === 0 ? " chat-transcript--empty" : ""}`}
-            ref={transcript}
-          >
-            <div className="conversation-content">
-              {messages.length === 0 ? (
-                <div className="welcome">
-                  <div className="welcome-emblem" aria-hidden="true">
-                    <Sprout size={28} strokeWidth={1.5} />
-                  </div>
-                  <Button
-                    className="btn btn-primary"
-                    disabled={liveActive || dictation.busy}
-                    onClick={() => startLive(true)}
-                  >
-                    <Mic size={17} />
-                    Start voice conversation
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="session-label">
-                    {example
-                      ? "FICTIONAL EXAMPLE"
-                      : liveEnabled && !example
-                        ? "CHAT WITH LINC"
-                        : "GUIDED QUESTIONS · NOT LIVE AI"}
-                  </div>
-                  <div
-                    className="messages"
-                    role="log"
-                    aria-label="Conversation"
-                    aria-live="polite"
-                  >
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`message ${message.role}`}
-                      >
-                        {message.role === "assistant" && <LincAvatar />}
-                        <div className="message-bubble">
-                          <span className="sr-only">
-                            {message.role === "assistant" ? "Linc: " : "You: "}
-                          </span>
-                          <p>{message.text}</p>
-                        </div>
+          {voiceVisible ? (
+            <VoiceStage
+              status={status}
+              paused={paused}
+              words={livePartial}
+              inputLevel={inputLevel}
+              reply={lastReply}
+              error={error}
+              notice={transcriptionNotice}
+              onPause={() => stopLive(true)}
+              onResume={() => void startLive(true)}
+              onExit={exitVoice}
+            />
+          ) : (
+            <>
+              <div
+                className={
+                  "chat-transcript" +
+                  (messages.length === 0 ? " chat-transcript--empty" : "")
+                }
+                ref={transcript}
+              >
+                <div className="conversation-content">
+                  {messages.length === 0 ? (
+                    <div className="welcome">
+                      <div className="welcome-emblem" aria-hidden="true">
+                        <LincAvatar />
                       </div>
-                    ))}
-                  </div>
-                  {status === "thinking" && (
-                    <div className="assistant-working">
-                      <LoaderCircle size={14} className="spin" />
-                      Linc is thinking…
+                      <Button
+                        className="btn btn-primary"
+                        disabled={status === "connecting"}
+                        onClick={() => startLive(true)}
+                      >
+                        <Mic size={17} /> Start voice conversation
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className="messages"
+                      role="log"
+                      aria-label="Conversation"
+                      aria-live="polite"
+                    >
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={"message " + message.role}
+                        >
+                          {message.role === "assistant" && <LincAvatar />}
+                          <div className="message-bubble">
+                            <span className="sr-only">
+                              {message.role === "assistant"
+                                ? "Linc: "
+                                : "You: "}
+                            </span>
+                            <p>{message.text}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </>
-              )}
-              {isConfirmed && (
-                <CoverageResult
-                  key={state.revision}
-                  profile={state.profile}
-                  example={example}
-                  onLearn={() => setInsight("support")}
-                  onScenario={setActiveScenario}
-                  externalScenario={activeScenario}
-                />
-              )}
-            </div>
-          </div>
-          <div className="composer-area">
-            {dictation.error && (
-              <div className="connection-error" role="alert">
-                <Info size={16} />
-                <span>{dictation.error}</span>
-                <button
-                  onClick={dictation.clearError}
-                  aria-label="Dismiss speech notice"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-            {dictation.busy && (
-              <div className="dictation-status" role="status">
-                <span>
-                  {dictation.phase === "recording" ? (
-                    <>
-                      <i className="recording-dot" />
-                      Recording · {Math.floor(dictation.seconds / 60)}:
-                      {String(dictation.seconds % 60).padStart(2, "0")} / 1:00
-                    </>
-                  ) : (
-                    <>
-                      <LoaderCircle size={14} className="spin" />
-                      {dictation.phase === "permission"
-                        ? "Allow microphone access to begin"
-                        : "Transcribing with ElevenLabs…"}
-                    </>
+                  {status === "thinking" && (
+                    <p className="assistant-working" role="status">
+                      <LoaderCircle className="spin" size={14} /> Linc is
+                      thinking…
+                    </p>
                   )}
-                </span>
-                <button type="button" onClick={dictation.cancel}>
-                  Cancel
-                </button>
+                  {isConfirmed && (
+                    <CoverageResult
+                      key={state.revision}
+                      profile={state.profile}
+                      example={example}
+                      onLearn={() => setInsight("support")}
+                      onScenario={setActiveScenario}
+                      externalScenario={activeScenario}
+                    />
+                  )}
+                </div>
               </div>
-            )}
-            {error && (
-              <div className="connection-error" role="alert">
-                <Info size={16} />
-                <span>{error}</span>
-                <button
-                  onClick={() => setError("")}
-                  aria-label="Dismiss connection notice"
+              <div className="composer-area">
+                {error && (
+                  <div className="connection-error" role="alert">
+                    <Info size={16} />
+                    <span>{error}</span>
+                    <button
+                      type="button"
+                      onClick={() => setError("")}
+                      aria-label="Dismiss connection notice"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                {liveActive ? (
+                  <div className="live-controls">
+                    <span>
+                      {status === "connecting" ? (
+                        <>
+                          <LoaderCircle className="spin" size={15} />{" "}
+                          Connecting…
+                        </>
+                      ) : (
+                        "Connected to Linc"
+                      )}
+                    </span>
+                    <div className="conversation-actions">
+                      {status !== "connecting" && (
+                        <button type="button" onClick={() => stopLive(true)}>
+                          <Pause size={14} /> Pause
+                        </button>
+                      )}
+                      <button type="button" onClick={() => stopLive()}>
+                        <Square size={12} /> End
+                      </button>
+                    </div>
+                  </div>
+                ) : paused ? (
+                  <div className="live-controls">
+                    <span>Paused</span>
+                    <div className="conversation-actions">
+                      <button
+                        type="button"
+                        onClick={() => startLive(voiceMode)}
+                      >
+                        <Play size={14} /> Resume conversation
+                      </button>
+                      <button type="button" onClick={() => stopLive()}>
+                        <Square size={12} /> End
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <form
+                  className="composer"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void send();
+                  }}
                 >
-                  ×
-                </button>
-              </div>
-            )}
-            {liveActive ? (
-              <div className="live-controls">
-                <span>
-                  {status === "connecting" ? (
-                    <LoaderCircle className="spin" size={15} />
-                  ) : (
-                    <AudioLines size={16} />
-                  )}{" "}
-                  {status === "connecting"
-                    ? "Connecting…"
-                    : status === "thinking"
-                      ? "Thinking it through…"
-                      : status === "speaking"
-                        ? "Linc is speaking"
-                        : "Ready when you are"}
-                </span>
-                <button onClick={stopLive}>
-                  <Square size={12} />
-                  End live conversation
-                </button>
-              </div>
-            ) : (
-              <div className="composer-context">
-                <span>
-                  {question && messages.length
-                    ? `UP NEXT: ${question === "dependents" ? "WHO YOU’RE THINKING OF" : fieldInfo[question].label.toUpperCase()}`
-                    : "A CONVERSATION, AT YOUR PACE"}
-                </span>
-                {liveEnabled && (
-                  <button onClick={() => startLive(false)}>
-                    Connect live text <ArrowRight size={12} />
+                  <input
+                    ref={input}
+                    id="message-input"
+                    aria-label="Your message"
+                    value={draft}
+                    maxLength={1000}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Message Linc…"
+                    disabled={status === "connecting"}
+                  />
+                  <button
+                    type="button"
+                    className="mic-button"
+                    onClick={() => startLive(true)}
+                    disabled={status === "connecting"}
+                    aria-label="Start voice conversation"
+                    title="Talk to Linc"
+                  >
+                    <Mic size={18} />
                   </button>
-                )}
+                  <Button
+                    type="submit"
+                    className="send-button"
+                    aria-label="Send message"
+                    disabled={!draft.trim() || status === "connecting"}
+                  >
+                    <ArrowUp size={18} />
+                  </Button>
+                </form>
+                <p className="composer-footnote">
+                  <ShieldCheck size={12} /> Educational guidance. Estimates are
+                  not policy quotes.
+                </p>
               </div>
-            )}
-            <form
-              className="composer"
-              onSubmit={(e) => {
-                e.preventDefault();
-                send();
-              }}
-            >
-              <input
-                ref={input}
-                id="message-input"
-                aria-label="Your message"
-                value={draft}
-                maxLength={1000}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Message Linc…"
-                disabled={status === "connecting" || dictation.busy}
-              />
-              <button
-                type="button"
-                className={`mic-button${dictation.phase === "recording" ? " is-recording" : ""}`}
-                onClick={() =>
-                  dictation.phase === "recording"
-                    ? dictation.finish()
-                    : void dictation.start()
-                }
-                disabled={
-                  liveActive ||
-                  dictation.phase === "permission" ||
-                  dictation.phase === "transcribing"
-                }
-                aria-label={
-                  dictation.phase === "recording"
-                    ? "Stop recording and transcribe"
-                    : "Dictate a message"
-                }
-                title={
-                  liveActive
-                    ? "End the live conversation to dictate a message"
-                    : "Speech-to-text with ElevenLabs"
-                }
-              >
-                {dictation.phase === "recording" ? (
-                  <Square size={15} fill="currentColor" />
-                ) : dictation.phase === "transcribing" ? (
-                  <LoaderCircle size={18} className="spin" />
-                ) : (
-                  <Mic size={18} />
-                )}
-              </button>
-              <Button
-                type="submit"
-                className="send-button"
-                aria-label="Send message"
-                disabled={
-                  !draft.trim() || status === "connecting" || dictation.busy
-                }
-              >
-                <ArrowUp size={18} />
-              </Button>
-            </form>
-            {dictation.phase === "recording" && (
-              <p className="dictation-hint">
-                Press stop to transcribe. You can review the text before
-                sending.
-              </p>
-            )}
-            <p className="composer-footnote">
-              <ShieldCheck size={12} />
-              Educational guidance. Estimates are not policy quotes.
-            </p>
-          </div>
+            </>
+          )}
         </section>
       </main>
       {insight && (
@@ -677,11 +623,14 @@ export function Assessment({
           }}
         />
       )}
-
       {liveEnabled && (
         <LiveConversation
           ref={live}
           context={context}
+          history={messages}
+          onPartialTranscript={setLivePartial}
+          onTranscriptionNotice={setTranscriptionNotice}
+          onInputLevel={setInputLevel}
           tools={tools}
           onMessage={addMessage}
           onStatus={handleStatus}

@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { Assessment } from "@/components/assessment";
-import { speechConfigured } from "@/lib/transcription";
 import { agentConfigured } from "@/lib/agent-session";
 export const dynamic = "force-dynamic";
 export default function ConversationPage() {
@@ -12,10 +11,7 @@ export default function ConversationPage() {
         </main>
       }
     >
-      <Assessment
-        speechEnabled={speechConfigured()}
-        liveEnabled={agentConfigured()}
-      />
+      <Assessment liveEnabled={agentConfigured()} />
     </Suspense>
   );
 }

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  ArrowRight,
   Calculator,
   HeartHandshake,
   ShieldCheck,
@@ -73,10 +72,7 @@ export default function Home() {
         </section>
         <div className="overview-actions">
           <Link className="btn btn-primary" href="/conversation">
-            Start a conversation <ArrowRight size={17} />
-          </Link>
-          <Link className="text-link" href="/conversation?mode=text">
-            I prefer to type <ArrowRight size={14} />
+            Start a conversation
           </Link>
         </div>
       </main>

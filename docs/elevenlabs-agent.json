@@ -16,5 +16,10 @@
     "private": true,
     "allowedHosts": ["127.0.0.1:3000", "localhost:3000"]
   },
-  "note": "Non-secret configuration reference. Local credentials stay in the ignored .env.local file. Live acceptance testing is pending."
+  "note": "Non-secret configuration reference. Local credentials stay in the ignored .env.local file. Live acceptance testing is pending.",
+  "turnDetection": {
+    "mode": "turn",
+    "eagerness": "normal",
+    "model": "turn_v3"
+  }
 }
