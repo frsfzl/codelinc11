@@ -28,7 +28,9 @@ The identity performing deployment needs Amplify app/branch/job management and p
 2. Configure the deployment and compute roles and the variables above.
 3. Add the deployed HTTPS hostname to the ElevenLabs agent's allowed hosts, keeping any development hosts still in use.
 4. Start the build and inspect the build/deployment logs.
-5. Open the HTTPS homepage and conversation page. Verify text session creation, realtime transcription token creation, and one live conversation without logging credentials or signed session URLs.
+5. Open the HTTPS homepage and conversation page. Verify text session creation, realtime transcription token creation, and one live conversation without logging credentials or signed session URLs. Every agent connection must be text-only; microphone input uses Scribe and never enables synthesized replies.
+
+The build runs `npm run build`. Automated tests are deliberately omitted at the user's request.
 
 The application stores the planning session in browser memory. No DynamoDB database is required to host its current features. The existing process-local request limits are demo guards; a wider public launch needs a durable rate limiter and appropriate access controls.
 

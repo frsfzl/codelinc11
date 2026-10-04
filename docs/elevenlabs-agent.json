@@ -3,14 +3,13 @@
   "name": "Linc — CodeLinc 11",
   "model": "gpt-4.1-mini",
   "assistantAudioPlayback": false,
-  "voiceId": "Sh2HQlQnXLdreCGVrD9W",
-  "voiceName": "Linc - Lincoln-inspired storyteller",
-  "voiceDescription": "Original American male tenor with a mature, lightly reedy tone, measured delivery, and gentle Midwestern rural inflection. Historically inspired, not a historical recording.",
-  "voiceSettings": {
-    "speed": 0.94,
-    "stability": 0.62
+  "conversationMode": "text_only",
+  "dictation": {
+    "model": "scribe_v2_realtime",
+    "commitStrategy": "vad",
+    "silenceThresholdSeconds": 1,
+    "sendCommittedTranscript": true
   },
-  "ttsModel": "eleven_flash_v2",
   "language": "en",
   "liveTranscriptionLanguage": "en",
   "toolIds": [

@@ -9,7 +9,6 @@ frontend:
     build:
       commands:
         - node scripts/amplify-env.mjs
-        - npm run test
         - npm run build
   artifacts:
     baseDirectory: .next

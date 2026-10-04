@@ -1,5 +1,5 @@
 "use client";
-import { Conversation, type ClientToolsConfig } from "@elevenlabs/client";
+import { TextConversation, type ClientToolsConfig } from "@elevenlabs/client";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { openSpeechStream, type SpeechStream } from "@/lib/realtime-speech";
 
@@ -13,7 +13,6 @@ export type LiveStatus =
   | "disconnected"
   | "connecting"
   | "listening"
-  | "speaking"
   | "thinking"
   | "connected"
   | "error";
@@ -50,13 +49,15 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
   function LiveConversation(props, ref) {
     const latest = useRef(props);
     latest.current = props;
-    const session = useRef<Conversation | null>(null);
+    const session = useRef<TextConversation | null>(null);
     const speech = useRef<SpeechStream | null>(null);
     const controller = useRef<AbortController | null>(null);
     const generation = useRef(0);
     const starting = useRef(false);
     const meter = useRef<ReturnType<typeof setInterval> | null>(null);
-    const typedMessages = useRef<string[]>([]);
+    const meterStream = useRef<MediaStream | null>(null);
+    const meterContext = useRef<AudioContext | null>(null);
+    const sentMessages = useRef<string[]>([]);
     const microphoneMuted = useRef(false);
 
     function release() {
@@ -69,15 +70,13 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
       speech.current = null;
       if (meter.current) clearInterval(meter.current);
       meter.current = null;
+      meterStream.current?.getTracks().forEach((track) => track.stop());
+      meterStream.current = null;
+      void meterContext.current?.close().catch(() => {});
+      meterContext.current = null;
       const previous = session.current;
       session.current = null;
-      if (previous) {
-        if (previous.type === "voice") {
-          previous.setMicMuted(true);
-          previous.setVolume({ volume: 0 });
-        }
-        void previous.endSession().catch(() => {});
-      }
+      if (previous) void previous.endSession().catch(() => {});
     }
     function resetCaptions() {
       latest.current.onPartialTranscript("");
@@ -104,25 +103,40 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
           const active = () => request === generation.current;
           const abort = new AbortController();
           controller.current = abort;
-          typedMessages.current = [];
+          sentMessages.current = [];
           latest.current.onStatus("connecting");
           let timeout: ReturnType<typeof setTimeout> | undefined;
-          let committed = "";
-          let finalized = "";
-          let finalizedAt = 0;
-          const normalize = (text: string) =>
-            text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
-          const alreadyFinal = (text: string) =>
-            Date.now() - finalizedAt < 1200 &&
-            normalize(text) &&
-            normalize(finalized).includes(normalize(text));
           try {
             if (voice) {
               const permission = await navigator.mediaDevices.getUserMedia({
                 audio: true,
               });
-              permission.getTracks().forEach((track) => track.stop());
-              if (!active()) return false;
+              if (!active()) {
+                permission.getTracks().forEach((track) => track.stop());
+                return false;
+              }
+              meterStream.current = permission;
+              // Input analysis only: nothing is connected to the speakers.
+              const context = new AudioContext();
+              meterContext.current = context;
+              const analyser = context.createAnalyser();
+              analyser.fftSize = 256;
+              context.createMediaStreamSource(permission).connect(analyser);
+              const samples = new Float32Array(analyser.fftSize);
+              void context.resume().catch(() => {});
+              meter.current = setInterval(() => {
+                if (!active()) return;
+                analyser.getFloatTimeDomainData(samples);
+                const energy = samples.reduce(
+                  (sum, value) => sum + value * value,
+                  0,
+                );
+                latest.current.onInputLevel(
+                  microphoneMuted.current
+                    ? 0
+                    : Math.min(1, Math.sqrt(energy / samples.length) * 5),
+                );
+              }, 100);
             }
             const response = await fetch("/api/conversation", {
               method: "POST",
@@ -134,56 +148,6 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
             if (!response.ok) throw new Error("Connection unavailable");
             const { signedUrl } = await response.json();
             if (!active()) return false;
-            if (voice) {
-              // Scribe previews words; the agent's turn detector submits audio.
-              // Captions must never be sent as a second user message.
-              try {
-                const stream = await openSpeechStream(
-                  {
-                    onPartial(text) {
-                      if (
-                        !active() ||
-                        microphoneMuted.current ||
-                        !text.trim() ||
-                        alreadyFinal(text)
-                      )
-                        return;
-                      latest.current.onPartialTranscript(
-                        [committed, text].filter(Boolean).join(" "),
-                      );
-                    },
-                    onCommitted(text) {
-                      if (
-                        !active() ||
-                        microphoneMuted.current ||
-                        !text.trim() ||
-                        alreadyFinal(text)
-                      )
-                        return;
-                      committed = [committed, text].filter(Boolean).join(" ");
-                      latest.current.onPartialTranscript(committed);
-                    },
-                    onError() {
-                      if (active())
-                        latest.current.onTranscriptionNotice(
-                          "Live words disconnected. Pause and resume to reconnect; voice can continue.",
-                        );
-                    },
-                  },
-                  abort.signal,
-                );
-                if (!active()) {
-                  stream.close();
-                  return false;
-                }
-                speech.current = stream;
-              } catch {
-                if (!active()) return false;
-                latest.current.onTranscriptionNotice(
-                  "Live words couldn’t connect. Your completed sentences will still appear. Pause and resume to retry.",
-                );
-              }
-            }
             const state = JSON.parse(latest.current.context);
             const history = latest.current.history
               .slice(-24)
@@ -204,10 +168,11 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                     : JSON.stringify({ error: "This session has ended." }),
               ]),
             );
-            const connecting = Conversation.startSession({
+            // Dictation sends transcribed text. The agent never opens an audio session.
+            const connecting = TextConversation.startSession({
               signedUrl,
               connectionType: "websocket",
-              textOnly: !voice,
+              textOnly: true,
               clientTools,
               dynamicVariables: {
                 profile_context: JSON.stringify({
@@ -217,21 +182,15 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                 opening_message: opening,
               },
               onConversationCreated(conversation) {
-                // Voice mode accepts microphone input, but Linc replies in text.
-                // Mute output before the connected session can play its greeting.
-                if (conversation.type === "voice")
-                  conversation.setVolume({ volume: 0 });
-                if (active()) session.current = conversation;
+                if (active() && conversation.type === "text")
+                  session.current = conversation;
                 else {
-                  if (conversation.type === "voice") {
-                    conversation.setMicMuted(true);
-                  }
                   void conversation.endSession().catch(() => {});
                 }
               },
               onConnect() {
                 if (active())
-                  latest.current.onStatus(voice ? "listening" : "connected");
+                  latest.current.onStatus(voice ? "connecting" : "connected");
               },
               onDisconnect(details) {
                 if (!active()) return;
@@ -259,14 +218,11 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                   ),
                 );
               },
-              onModeChange({ mode }) {
-                if (active() && voice && mode === "listening")
-                  latest.current.onStatus("listening");
-              },
               onAgentTyping(event) {
                 if (!active()) return;
                 if (event.is_typing) latest.current.onStatus("thinking");
-                else if (!voice) latest.current.onStatus("connected");
+                else if (!starting.current)
+                  latest.current.onStatus(voice ? "listening" : "connected");
               },
               onMessage(event) {
                 if (
@@ -277,26 +233,19 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                   return;
                 const user = event.source === "user";
                 if (user) {
-                  const echo = typedMessages.current.indexOf(event.message);
+                  const echo = sentMessages.current.indexOf(event.message);
                   if (echo >= 0) {
-                    typedMessages.current.splice(echo, 1);
+                    sentMessages.current.splice(echo, 1);
                     return;
                   }
-                  finalized = event.message;
-                  finalizedAt = Date.now();
-                  committed = "";
-                  // The finalized utterance now lives in the shared chat log.
-                  latest.current.onPartialTranscript("");
-                } else {
-                  committed = "";
-                  latest.current.onPartialTranscript("");
                 }
                 latest.current.onMessage(
                   user ? "user" : "assistant",
                   event.message,
                 );
                 if (user) latest.current.onStatus("thinking");
-                else latest.current.onStatus(voice ? "listening" : "connected");
+                else if (!starting.current)
+                  latest.current.onStatus(voice ? "listening" : "connected");
               },
             });
             const canceled = new Promise<never>((_, reject) => {
@@ -318,14 +267,49 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
               return false;
             }
             session.current = connected;
+            if (timeout) clearTimeout(timeout);
+            if (voice) {
+              const stream = await openSpeechStream(
+                {
+                  onPartial(text) {
+                    if (!active() || microphoneMuted.current) return;
+                    latest.current.onPartialTranscript(text);
+                  },
+                  onCommitted(transcript) {
+                    const text = transcript.trim();
+                    if (
+                      !active() ||
+                      microphoneMuted.current ||
+                      !text ||
+                      /^[\s.…]+$/.test(text)
+                    )
+                      return;
+                    // Scribe's committed segment is the only spoken user turn.
+                    // Ignore its eventual text-session echo to avoid duplicates.
+                    sentMessages.current.push(text);
+                    sentMessages.current = sentMessages.current.slice(-64);
+                    latest.current.onMessage("user", text);
+                    latest.current.onPartialTranscript("");
+                    connected.sendUserMessage(text);
+                    latest.current.onStatus("thinking");
+                  },
+                  onError(message) {
+                    if (!active()) return;
+                    release();
+                    resetCaptions();
+                    latest.current.onStatus("error", message);
+                  },
+                },
+                abort.signal,
+              );
+              if (!active()) {
+                stream.close();
+                return false;
+              }
+              speech.current = stream;
+            }
             starting.current = false;
-            if (voice)
-              meter.current = setInterval(() => {
-                if (active())
-                  latest.current.onInputLevel(
-                    microphoneMuted.current ? 0 : connected.getInputVolume(),
-                  );
-              }, 100);
+            latest.current.onStatus(voice ? "listening" : "connected");
             return true;
           } catch (error) {
             if (!active()) return false;
@@ -353,11 +337,14 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
         },
         setMuted(muted) {
           const connected = session.current;
-          if (!connected?.isOpen() || connected.type !== "voice") return false;
+          if (!connected?.isOpen() || !speech.current) return false;
           microphoneMuted.current = muted;
-          connected.setMicMuted(muted);
+          meterStream.current?.getAudioTracks().forEach((track) => {
+            track.enabled = !muted;
+          });
           if (muted) {
             speech.current?.mute();
+            latest.current.onPartialTranscript("");
             latest.current.onInputLevel(0);
           } else {
             speech.current?.unmute();
@@ -366,7 +353,8 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
         },
         send(text) {
           if (!session.current?.isOpen()) return;
-          typedMessages.current.push(text);
+          sentMessages.current.push(text);
+          sentMessages.current = sentMessages.current.slice(-64);
           session.current.sendUserMessage(text);
           latest.current.onStatus("thinking");
         },

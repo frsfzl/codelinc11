@@ -65,11 +65,9 @@ export function VoiceComposer({
         ? "Microphone muted"
         : talking
           ? "Listening to you"
-          : status === "speaking"
-            ? "Linc is speaking"
-            : status === "thinking"
-              ? "Linc is thinking…"
-              : "Listening";
+          : status === "thinking"
+            ? "Linc is thinking…"
+            : "Listening";
   useLayoutEffect(() => {
     const motion = orbMotion.current;
     const button = microphone.current;
@@ -169,11 +167,9 @@ export function VoiceComposer({
                 ? "Tap the microphone to reconnect."
                 : muted
                   ? "Tap the microphone to unmute."
-                  : status === "speaking"
-                    ? "Linc is speaking…"
-                    : status === "thinking"
-                      ? "Message sent. Linc is thinking…"
-                      : "Speak naturally. Your words will appear here.")}
+                  : status === "thinking"
+                    ? "Message sent. Linc is thinking…"
+                    : "Speak naturally. Your words will appear here.")}
         </p>
       </div>
       <div className="voice-controls">

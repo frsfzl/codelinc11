@@ -27,7 +27,7 @@ The browser tests run against an isolated production server on port 3001 with th
 - **Homepage:** a concise, single-screen mission and four offerings with clear calls to begin. Fits desktop, the 847 × 765 compact browser, and phone viewports without hiding overflowing content.
 - **Assessment:** a blue gradient matching the homepage, a rounded composer, and a white “Key details” sidebar that fills the available desktop height. New or changed details animate, with updating/updated indicators. The sidebar collapses on phones; its expanded content scrolls within a bounded height.
 - **Comparison popups:** click a captured highlight for proportional dollar charts, confirmed coverage totals, a term/whole-life toggle, conceptual duration diagrams, and tradeoffs. Partial charts are labeled; a coverage gap appears only after confirmation. Switching policy type never changes the math or invents premiums.
-- **Voice mode:** either microphone button replaces the text chat with a blue gradient, an input-responsive glowing microphone, Linc’s latest reply, and live words. The agent detects completed statements and responds automatically. Pause/Resume keeps captured details and chat; X stops audio and returns to typing. The microphone remains available after ending a session.
+- **Dictation:** either microphone button replaces only the composer with live English transcription and a glowing microphone. Scribe detects a pause and sends the completed statement automatically to a text-only agent. Linc never generates or plays spoken replies. Muting pauses capture, X returns to typing, and reconnecting preserves the chat and captured details.
 - **Conversation-only intake:** Linc asks the relevant questions, captures natural-language answers, and asks for a quick spoken or typed confirmation of the recap. No intake form or review buttons. Unknown values stay unknown and zero means an explicit exclusion.
 - **Recommendation:** after confirmation, the exact calculation appears automatically and Linc explains the coverage target, support horizon, relevant policy direction and tradeoffs. Corrections in chat invalidate the previous estimate until reconfirmed.
 - **Explainable result:** total needs, resources already in place, additional coverage, line items and assumptions.
@@ -39,9 +39,9 @@ Guided mode uses deterministic questions and a limited amount parser; it is **no
 
 ## ElevenLabs speech-to-text
 
-Both microphone buttons start the full voice conversation. ElevenLabs Scribe v2 Realtime supplies partial words while the agent’s own turn detector submits the spoken statement automatically. Partial captions are display-only; they are never resent to the agent, so a spoken answer is not duplicated. Caption failure leaves the agent working and offers a pause/resume retry. The microphone glow follows measured input volume.
+Both microphone buttons start English dictation. ElevenLabs Scribe v2 Realtime supplies partial words and commits the completed statement after about one second of detected silence. Each committed segment is sent once as a user text message to an ElevenLabs `TextConversation`; any echoed user message is ignored. Partial captions are display-only. A transcription failure stops the connection and offers reconnection or typing. The microphone glow follows measured input volume; its analysis graph is never connected to audio output.
 
-The Node endpoint /api/speech-token issues a short-lived, single-use realtime Scribe token. The API key stays on the server. Tokens and signed session URLs are not stored in the app or logs. Same-origin checks, no-store responses, timeouts, and process-local rate/concurrency limits protect this local demo. Live captions use an additional Scribe stream alongside the agent, so both services contribute to provider usage.
+The Node endpoint /api/speech-token issues a short-lived, single-use realtime Scribe token. The API key stays on the server. Tokens and signed session URLs are not stored in the app or logs. Same-origin checks, no-store responses, timeouts, and process-local rate/concurrency limits protect this local demo. Dictation uses Scribe and a text-only agent. There is no agent voice session, synthesized reply audio, or audio playback.
 
 For normal hosting, set ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID and APP_ORIGIN in server-only environment variables. Local development also supports the already authenticated native ElevenLabs CLI through ELEVENLABS_USE_CLI=true and ELEVENLABS_CLI_PATH. CLI mode is restricted to loopback origins and invokes the native executable directly without a shell. This workstation’s ignored .env.local enables that bridge.
 
@@ -49,17 +49,17 @@ Pause disconnects both streams and stops audio. Resume opens a fresh provider se
 
 The app does not persist audio or transcripts. Provider processing and retention remain subject to account settings. See the [realtime transcription guide](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/client-side-streaming).
 
-## Live voice and text
+## Live text and dictation
 
 1. Create a private ElevenLabs Agent. Use `docs/agent-prompt.md` as its system prompt and register the six client tools in `docs/client-tools.json`. Tool names and types must match exactly. Enable **Wait for response** for each client tool.
-2. Configure the `profile_context` dynamic variable with a default of `{}` and `opening_message` with a greeting introducing Linc. Enable text-only conversations so the same agent supports typing without microphone access. Choose a voice/model in the ElevenLabs dashboard; no voice ID or model is hard-coded in this repo.
+2. Configure the `profile_context` dynamic variable with a default of `{}` and `opening_message` with a greeting introducing Linc. Enable text-only conversations. The app always connects with `textOnly: true`, including during dictation; any dashboard voice configuration is unused.
 3. Restrict the agent's allowed origins to your development origin. Configure provider retention and recording settings appropriate to the demo before using real information.
 4. Copy `.env.example` to `.env.local`, set `ELEVENLABS_AGENT_ID` and either the server-only `ELEVENLABS_API_KEY` or the local authenticated CLI settings above, and set `APP_ORIGIN` to the exact URL origin you open. Restart the server. Do not put secrets in `NEXT_PUBLIC_` variables or commit `.env.local`.
 5. Type and send a message to connect automatically, or select **Start voice conversation** or the composer microphone. The browser requests a short-lived signed WebSocket URL from the Node route; the API key stays on the server. Voice begins only after an explicit button press and microphone permission.
 
-The integration uses `@elevenlabs/client` 1.26 with explicitly owned, cancelable session lifecycles. Late connection callbacks and tool calls from ended sessions are ignored. Connection, listening, thinking, speaking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer corrections cannot be overwritten by stale requests. `review_profile` returns a recap tied to the current revision. `calculate_needs` requires a new affirmative user reply after that recap, quoted exactly; old or invented confirmations are rejected. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
+The integration uses `@elevenlabs/client` 1.26 with explicitly owned, cancelable session lifecycles. Late connection callbacks and tool calls from ended sessions are ignored. Connection, listening, thinking, disconnection and error states are displayed. The shared profile is sent when a session starts and when it changes. Tool writes validate data and the expected revision; newer corrections cannot be overwritten by stale requests. `review_profile` returns a recap tied to the current revision. `calculate_needs` requires a new affirmative user reply after that recap, quoted exactly; old or invented confirmations are rejected. The calculator returns exact structured results; the prompt tells the agent not to invent arithmetic.
 
-The private **Linc — CodeLinc 11** agent is configured in ElevenLabs with six client tools, the Bella voice, GPT-4.1 mini, sequential tool calls, text/voice support, and localhost access restrictions. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Voice recording is disabled in the agent settings and conversation retention is seven days.
+The private **Linc — CodeLinc 11** agent uses six client tools, GPT-4.1 mini, sequential tool calls, and text-only sessions in this application. The ignored local environment points to agent `agent_9101m41qsmf3fkdbpwx13xy5n9k3`. Server-side signing can use the authenticated native CLI in local development. Microphone audio goes only to Scribe transcription, and Linc's replies remain text. Provider retention is controlled separately in the account.
 
 Automated tests and live microphone sessions were skipped for these changes at the user’s request. The new realtime captions, automatic voice turns, and pause/reconnect flow have not been exercised end to end. Earlier batch transcription was separately verified before this change. Provider processing/retention is separate from the app's in-memory state; refreshing this page does not delete provider records.
 
@@ -98,7 +98,7 @@ src/lib/realtime-speech.ts            Cancelable realtime caption stream
 src/lib/conversation-review.ts       Spoken/typed recap and confirmation guard
 src/components/coverage-result.tsx   Explanation and independent scenarios
 src/components/education.tsx         Term/whole-life education
-src/components/live-conversation.tsx ElevenLabs voice and text adapter
+src/components/live-conversation.tsx Text-only agent and automatic dictation adapter
 src/lib/needs.ts                     Single deterministic calculation boundary
 src/lib/guided.ts                    Explicitly non-AI fallback intake
 src/lib/transcription.ts             Scribe API and opt-in local CLI adapter

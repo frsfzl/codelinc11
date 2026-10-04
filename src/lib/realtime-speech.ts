@@ -30,7 +30,7 @@ export async function openSpeechStream(
       modelId: "scribe_v2_realtime",
       languageCode: "en",
       commitStrategy: CommitStrategy.VAD,
-      vadSilenceThresholdSecs: 0.5,
+      vadSilenceThresholdSecs: 1,
       microphone: {
         echoCancellation: true,
         noiseSuppression: true,
