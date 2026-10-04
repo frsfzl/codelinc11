@@ -1,4 +1,4 @@
-# Prepared for a future deployment. This file does not deploy anything by itself.
+# Amplify Hosting SSR build. Set the three production values documented in .env.example.
 version: 1
 frontend:
   phases:
@@ -8,6 +8,7 @@ frontend:
         - npm ci
     build:
       commands:
+        - node scripts/amplify-env.mjs
         - npm run test
         - npm run build
   artifacts:

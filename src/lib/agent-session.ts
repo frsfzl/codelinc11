@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { speechConfigured } from "./transcription";
+import { getProviderKey } from "./provider-key";
 
 const execute = promisify(execFile);
 export function agentConfigured() {
@@ -14,13 +15,14 @@ export async function createAgentSession(
   const agentId = process.env.ELEVENLABS_AGENT_ID;
   if (!agentId) throw new Error("Agent not configured");
   let result: { signed_url?: unknown };
-  if (process.env.ELEVENLABS_API_KEY) {
+  const apiKey = await getProviderKey(signal);
+  if (apiKey) {
     const url = new URL(
       "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url",
     );
     url.searchParams.set("agent_id", agentId);
     const response = await fetch(url, {
-      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+      headers: { "xi-api-key": apiKey },
       cache: "no-store",
       signal,
     });

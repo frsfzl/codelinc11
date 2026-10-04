@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { getProviderKey } from "./provider-key";
 
 const execute = promisify(execFile);
 
@@ -8,12 +9,13 @@ export async function createRealtimeToken(
   signal: AbortSignal,
 ): Promise<string> {
   let result: { token?: unknown };
-  if (process.env.ELEVENLABS_API_KEY) {
+  const apiKey = await getProviderKey(signal);
+  if (apiKey) {
     const response = await fetch(
       "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe",
       {
         method: "POST",
-        headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+        headers: { "xi-api-key": apiKey },
         cache: "no-store",
         signal,
       },

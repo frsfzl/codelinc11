@@ -109,8 +109,8 @@ tests/                              Unit and desktop/mobile browser coverage
 
 Next.js 15 App Router, TypeScript, React, Tailwind 4, a shadcn/Radix button, Lucide icons and Zod. `postcss` is overridden to a patched compatible 8.x release. There is no database, authentication, tracking, localStorage financial state, purchase flow or deployment script.
 
-## AWS later
+## AWS Amplify
 
-`amplify.yml` is a proposed build specification for a future Amplify Hosting deployment. It runs the tests/build and publishes `.next`. The app uses Node API routes and direct browser-to-provider conversation transport, not Edge APIs or server response streaming. Next.js 15 is within the currently documented [Amplify SSR support range](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-amplify-support.html).
+`amplify.yml` prepares the production configuration, runs the tests/build, and publishes `.next`. The app uses Node API routes and direct browser-to-provider conversation transport, not Edge APIs or server response streaming. Next.js 15 is within the currently documented [Amplify SSR support range](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-amplify-support.html).
 
-Before enabling a public live demo, configure the actual production origin, make server-side provider credentials available in the SSR runtime through a supported secret mechanism, and confirm the provider's origin and retention settings. Amplify build environment variables should not be assumed to exist automatically in the SSR runtime. The signing endpoint's process-local 10-per-minute cap is only a demo guard: add a durable rate limiter and appropriate access/abuse controls before public use. Deployment, runtime secret wiring and a live-provider smoke test remain separate follow-up work.
+For AWS hosting, set `APP_ORIGIN`, `ELEVENLABS_AGENT_ID`, and `ELEVENLABS_SECRET_ARN`. The server reads the key from Secrets Manager using an Amplify SSR compute role; only the secret's ARN enters build artifacts. See [the deployment guide](docs/aws-deployment.md) for IAM roles, GitHub connection, and production checks. The signing endpoint's process-local 10-per-minute cap is only a demo guard: add a durable rate limiter and appropriate access/abuse controls before a wider public launch.

@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, unlink, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { getProviderKey, providerKeyConfigured } from "./provider-key";
 
 const execute = promisify(execFile);
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
@@ -27,7 +28,7 @@ export class TranscriptionError extends Error {
 
 export function speechConfigured() {
   return Boolean(
-    process.env.ELEVENLABS_API_KEY ||
+    providerKeyConfigured() ||
     (process.env.ELEVENLABS_USE_CLI === "true" &&
       process.env.ELEVENLABS_CLI_PATH),
   );
@@ -109,7 +110,7 @@ export async function transcribeAudio(
   origin: string,
 ): Promise<string> {
   const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(55_000)]);
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = await getProviderKey(signal);
   if (apiKey) {
     const data = new FormData();
     data.append(
