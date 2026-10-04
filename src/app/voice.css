@@ -16,18 +16,34 @@
   min-height: 0;
   overflow: hidden;
 }
-.assessment-page .situation-details[open] {
+.assessment-page .situation-details {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
 }
-.assessment-page .situation-details > summary {
+.assessment-page .situation-heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
   padding: 22px 20px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.situation-heading > svg {
+  color: var(--primary);
 }
 .assessment-page .key-highlights {
-  height: calc(100% - 56px);
+  flex: 1;
+  min-height: 0;
   padding-top: 0;
   overflow-y: auto;
-  scrollbar-width: thin;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 .highlight-progress {
   position: sticky;
@@ -43,10 +59,75 @@
   font-size: 10px;
 }
 .highlight-card {
-  animation: highlight-arrive 350ms ease-out both;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  animation: highlight-arrive 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--highlight-delay, 0ms);
+}
+.highlight-top,
+.highlight-value {
+  position: relative;
+  z-index: 1;
+}
+.highlight-title {
+  flex: 1;
+  min-width: 0;
+}
+.highlight-symbol {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.highlight-card[data-change] .highlight-symbol {
+  animation: highlight-icon-pop 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.highlight-feedback,
+.highlight-glow,
+.highlight-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.highlight-feedback {
+  overflow: hidden;
+}
+.highlight-glow {
+  border: 1px solid #a73567;
+  background: linear-gradient(120deg, #f7e7eea6, #dfecff80 65%, transparent);
+  box-shadow: inset 0 0 16px #9a285329;
+  animation: highlight-glow 2200ms ease-out both;
+}
+.highlight-sweep {
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    #ffffffd9 48%,
+    transparent 70%
+  );
+  animation: highlight-sweep 1100ms cubic-bezier(0.2, 0.65, 0.35, 1) both;
+}
+.highlight-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  border-radius: 20px;
+  padding: 3px 5px;
+  background: #f6e7ef;
+  color: var(--primary);
+  font-size: 8px;
+  line-height: 1.3;
+  font-weight: 600;
+  animation: highlight-badge 2600ms ease both;
+}
+.highlight-change svg path {
+  stroke-dasharray: 24;
+  animation: highlight-check 450ms 150ms ease-out both;
 }
 .highlight-value {
-  animation: highlight-refresh 650ms ease-out both;
+  animation: highlight-refresh 550ms ease-out both;
 }
 .conversation-actions {
   display: flex;
@@ -85,6 +166,40 @@
   gap: 18px;
   align-items: center;
   width: auto;
+}
+.voice-composer.has-glide {
+  z-index: 2;
+  animation: none;
+}
+.voice-orb-glyph {
+  display: grid;
+  place-items: center;
+}
+.voice-composer.has-glide .voice-words,
+.voice-composer.has-glide .voice-exit,
+.voice-composer.has-glide .voice-state,
+.voice-composer.has-glide .voice-hint {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+.voice-composer.is-entering .voice-words,
+.voice-composer.is-entering .voice-exit,
+.voice-composer.is-entering .voice-state,
+.voice-composer.is-entering .voice-hint {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+.voice-composer.is-entering .voice-orb-wrap::before,
+.voice-composer.is-connecting .voice-orb-wrap::before {
+  opacity: 0;
+}
+.voice-composer.is-entering .voice-orb {
+  opacity: 1;
+  background: var(--primary);
+  transform: none;
+  box-shadow: 0 10px 28px #76002e24;
 }
 .voice-exit {
   grid-column: 3;
@@ -189,7 +304,6 @@
 .voice-words p {
   max-height: 56px;
   overflow-y: auto;
-  scrollbar-width: thin;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
@@ -215,23 +329,86 @@
   margin: 8px auto 0;
 }
 @keyframes highlight-arrive {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(9px);
+    transform: translateY(16px) scale(0.96);
   }
-  to {
+  65% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(-2px) scale(1.008);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 @keyframes highlight-refresh {
   0% {
-    opacity: 0.3;
-    background: #e5effb;
+    opacity: 0.25;
+    transform: translateY(4px);
   }
   100% {
     opacity: 1;
-    background: transparent;
+    transform: translateY(0);
+  }
+}
+@keyframes highlight-glow {
+  0% {
+    opacity: 0;
+  }
+  18%,
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes highlight-sweep {
+  from {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+}
+@keyframes highlight-icon-pop {
+  0% {
+    transform: scale(0.75) rotate(-12deg);
+  }
+  55% {
+    transform: scale(1.18) rotate(5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes highlight-badge {
+  0% {
+    opacity: 0;
+    transform: translateY(3px) scale(0.9);
+  }
+  12%,
+  85% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+@keyframes highlight-check {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 @keyframes voice-appear {
@@ -251,17 +428,13 @@
     overflow: hidden;
   }
   .assessment-page .situation-panel {
-    flex: 0 0 auto;
+    flex: 0 0 clamp(160px, 28dvh, 230px);
   }
-  .assessment-page .situation-details > summary {
+  .assessment-page .situation-heading {
     padding: 14px 16px;
   }
-  .assessment-page .situation-details[open] {
-    height: auto;
-  }
   .assessment-page .key-highlights {
-    height: auto;
-    max-height: 30dvh;
+    max-height: none;
   }
   .assessment-page .chat-panel {
     flex: 1;
@@ -275,14 +448,27 @@
   .voice-composer {
     padding-top: 6px;
   }
+  .highlight-symbol {
+    display: none;
+  }
+  .highlight-top {
+    flex-wrap: wrap;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .voice-composer *,
   .voice-composer *::before,
   .voice-composer,
   .highlight-card,
-  .highlight-value {
+  .highlight-card[data-change] .highlight-symbol,
+  .highlight-value,
+  .highlight-feedback *,
+  .highlight-change,
+  .highlight-change svg path {
     animation: none;
     transition: none;
+  }
+  .highlight-sweep {
+    display: none;
   }
 }

@@ -224,6 +224,13 @@ export interface ProfileState {
   profile: Profile;
   revision: number;
   confirmedRevision: number | null;
+  educationPlan?: {
+    annualAmount: number | null;
+    years: number | null;
+    scope: "combined" | "per-person" | "unknown";
+    people: number | null;
+  } | null;
+  clarifications?: Partial<Record<NumericKey, string>>;
 }
 export function applyProfilePatch(
   state: ProfileState,
@@ -232,10 +239,11 @@ export function applyProfilePatch(
 ): ProfileState {
   if (expectedRevision !== state.revision)
     throw new Error(
-      "The profile changed. Read the latest profile and ask again before updating it.",
+      "The profile changed. Call get_profile, then retry the customer's latest unambiguous facts with that revision. Do not ask them to repeat information just because the revision changed.",
     );
   const parsed = profileSchema.partial().parse(patch);
   return {
+    ...state,
     profile: profileSchema.parse({ ...state.profile, ...parsed }),
     revision: state.revision + 1,
     confirmedRevision: null,

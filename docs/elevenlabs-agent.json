@@ -2,7 +2,14 @@
   "agentId": "agent_9101m41qsmf3fkdbpwx13xy5n9k3",
   "name": "Linc — CodeLinc 11",
   "model": "gpt-4.1-mini",
-  "voiceId": "hpp4J3VqNfWAUOO0d1Us",
+  "assistantAudioPlayback": false,
+  "voiceId": "Sh2HQlQnXLdreCGVrD9W",
+  "voiceName": "Linc - Lincoln-inspired storyteller",
+  "voiceDescription": "Original American male tenor with a mature, lightly reedy tone, measured delivery, and gentle Midwestern rural inflection. Historically inspired, not a historical recording.",
+  "voiceSettings": {
+    "speed": 0.94,
+    "stability": 0.62
+  },
   "ttsModel": "eleven_flash_v2",
   "language": "en",
   "liveTranscriptionLanguage": "en",
@@ -22,6 +29,16 @@
   "turnDetection": {
     "mode": "turn",
     "eagerness": "normal",
-    "model": "turn_v3"
+    "model": "turn_v3",
+    "turnTimeoutSeconds": 30,
+    "silenceBehavior": "Use skip_turn without text or audio while waiting for new customer input."
+  },
+  "builtInTools": {
+    "skip_turn": {
+      "type": "system",
+      "name": "skip_turn",
+      "description": "Wait silently when there is no new customer message after a greeting, question, or completed response, including silence timeouts. Also use when the customer requests a pause. Do not speak or send any text before or after this tool. Resume normally for a new customer message or a pending tool result needed to answer it.",
+      "params": { "system_tool_type": "skip_turn" }
+    }
   }
 }

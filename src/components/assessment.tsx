@@ -1,10 +1,10 @@
 "use client";
 import LiveConversation from "./live-conversation";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
-  ChevronDown,
   Info,
   LoaderCircle,
   Mic,
@@ -13,11 +13,11 @@ import {
   ShieldCheck,
   Square,
   Users,
+  FileText,
 } from "lucide-react";
 import { z } from "zod";
 import { Brand } from "./brand";
 import { Button } from "./ui/button";
-import { CoverageResult } from "./coverage-result";
 import { LincAvatar } from "./linc-avatar";
 import { AssistantReply, ThinkingIndicator } from "./assistant-reply";
 import {
@@ -27,8 +27,11 @@ import {
   type ConversationReview,
 } from "@/lib/conversation-review";
 import { KeyHighlights } from "./key-highlights";
-import { InsightView } from "./insight-view";
-import { VoiceComposer } from "./voice-stage";
+import { InsightView, type InsightSection } from "./insight-view";
+import { SummaryReport } from "./summary-report";
+import { applyIntakePatch, captureClarifications } from "@/lib/intake";
+import { buildSummary } from "@/lib/summary";
+import { VoiceComposer, type VoiceStartOrigin } from "./voice-stage";
 import type { HighlightKey } from "@/lib/highlights";
 import type { LiveHandle, LiveStatus } from "./live-conversation";
 import {
@@ -83,6 +86,12 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   const [insight, setInsight] = useState<HighlightKey | null>(
     params.get("learn") === "true" ? "support" : null,
   );
+  const [insightSection, setInsightSection] = useState<
+    InsightSection | undefined
+  >(params.get("learn") === "true" ? "options" : undefined);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const previousAssistant = useRef("");
   const example = false;
   const [skippedIncome, setSkippedIncome] = useState(false);
   const [status, setStatus] = useState<LiveStatus>("disconnected");
@@ -94,22 +103,27 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   const [livePartial, setLivePartial] = useState("");
   const [transcriptionNotice, setTranscriptionNotice] = useState("");
   const [voiceVisible, setVoiceVisible] = useState(false);
+  const [voiceOrigin, setVoiceOrigin] = useState<VoiceStartOrigin | null>(null);
   const [inputLevel, setInputLevel] = useState(0);
   const [activeScenario, setActiveScenario] = useState<Scenario>({});
   const live = useRef<LiveHandle>(null);
   const transcript = useRef<HTMLDivElement>(null);
-  const situation = useRef<HTMLDetailsElement>(null);
+  const messageFlow = useRef<HTMLDivElement>(null);
   const liveActive = liveMode && !["disconnected", "error"].includes(status);
-  const isConfirmed = state.confirmedRevision === state.revision;
   const question = nextQuestion(state.profile, skippedIncome);
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 760px)").matches && situation.current)
-      situation.current.open = false;
-  }, []);
 
   const addMessage = useCallback((role: Message["role"], text: string) => {
     const message = { id: ++sequence.current, role, text };
-    if (role === "user") latestUser.current = message;
+    if (role === "user") {
+      latestUser.current = message;
+      setFinished(false);
+      const clarified = captureClarifications(
+        current.current,
+        text,
+        previousAssistant.current,
+      );
+      if (clarified !== current.current) update(clarified);
+    } else previousAssistant.current = text;
     setMessages((prev) => [...prev, message]);
   }, []);
   function update(next: ProfileState) {
@@ -123,17 +137,39 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     setStatus(next);
     if (message) setError(message);
   }, []);
+  const scrollToLatestMessage = useCallback(() => {
+    const panel = transcript.current;
+    const flow = messageFlow.current;
+    if (!panel || !flow) return;
+    const bottomPadding =
+      parseFloat(getComputedStyle(panel).paddingBottom) || 0;
+    panel.scrollTo({
+      top: Math.max(
+        0,
+        panel.scrollTop +
+          flow.getBoundingClientRect().bottom -
+          panel.getBoundingClientRect().top -
+          panel.clientHeight +
+          bottomPadding,
+      ),
+      // Smooth scrolling restarts on each streamed line and can lag behind speech.
+      behavior: "instant",
+    });
+  }, []);
+  useEffect(() => {
+    scrollToLatestMessage();
+  }, [messages.length, status, scrollToLatestMessage]);
   useEffect(() => {
     const panel = transcript.current;
-    if (!panel) return;
-    const result = panel.querySelector(".result-card");
-    if (isConfirmed && result)
-      panel.scrollTop +=
-        result.getBoundingClientRect().top -
-        panel.getBoundingClientRect().top -
-        24;
-    else panel.scrollTop = panel.scrollHeight;
-  }, [messages.length, isConfirmed]);
+    const flow = messageFlow.current;
+    if (!panel || !flow) return;
+    // Reply text is revealed inside child components, so message count alone
+    // does not reflect its growing height. Also follow voice/composer resizing.
+    const observer = new ResizeObserver(scrollToLatestMessage);
+    observer.observe(flow);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [scrollToLatestMessage]);
   const tools = useMemo(() => {
     function guarded(work: (args: Record<string, unknown>) => unknown) {
       return (args: Record<string, unknown>) => {
@@ -158,17 +194,18 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           .extend({ patch: z.string().max(10000) })
           .strict()
           .parse(args);
-        const next = applyProfilePatch(
+        const next = applyIntakePatch(
           current.current,
           JSON.parse(patch),
           expectedRevision,
+          latestUser.current?.text ?? "",
         );
         update(next);
         return {
           ...next,
           missing: missingFields(next.profile),
           instruction:
-            "Details captured. Ask the next missing question naturally. When complete, use review_profile and ask the customer to confirm the recap in chat. Never ask them to fill in a form.",
+            "Details captured. Reply in 1 or 2 short sentences, at most 35 words. Ask only the next missing question; do not repeat captured facts. Resolve clarifications first. Annual education costs need educationPlan annualAmount, years, scope (combined or per-person), and people if per-person. The app calculates the total; do not replace annual costs with one-time amounts. Use review_profile when complete. No forms.",
         };
       }),
       review_profile: guarded((args) => {
@@ -184,7 +221,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         return {
           ...pendingReview.current,
           instruction:
-            "Share this recap in the conversation, including zeros. Ask whether it is correct and WAIT for a new customer reply. No forms or buttons.",
+            "Use this compact recap once, preserving every calculation amount and grouped $0 exclusions. Do not repeat optional income, budget, family context, or priorities. Ask Is that correct? Then WAIT for a new customer reply. No preamble, forms, or buttons.",
         };
       }),
       calculate_needs: guarded((args) => {
@@ -207,7 +244,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         return {
           ...confirmedEstimate(current.current, expectedRevision),
           instruction:
-            "Give a personalized planning recommendation now, explain these exact numbers, and discuss the relevant term/whole-life tradeoff. Do not request a form.",
+            "Reply in ONE paragraph of 3 short sentences, at most 65 words. State the additional coverage and a policy direction tied to the customer's goal. Explain support multiplication and total needs minus resources with these exact amounts. Finish with ONE personal tradeoff or next step. The sidebar summary contains the full breakdown and PDF. Do not repeat the recap, list every qualification, or ask another question.",
         };
       }),
       explore_scenario: guarded((args) => {
@@ -218,13 +255,15 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         const baseline = confirmedEstimate(current.current, expectedRevision);
         const result = calculateScenario(current.current.profile, scenario);
         setActiveScenario(scenario);
+        setInsightSection("what-if");
+        setInsight("estimate");
         return {
           original: baseline,
           scenario: result,
           difference: result.additional - baseline.additional,
           assumptions: scenario,
           instruction:
-            "Explain only the changed assumption. The original profile is unchanged.",
+            "In at most 2 short sentences and 35 words, explain the changed assumption and its impact. The original profile is unchanged. Do not repeat the full estimate.",
         };
       }),
       show_education: guarded((args) => {
@@ -237,6 +276,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           .strict()
           .parse(args);
         setInsight(focus ?? "support");
+        setInsightSection("options");
         return "Comparison popup is open with charts, a policy toggle, and tradeoffs. Explain the choices without inventing prices.";
       }),
     };
@@ -292,7 +332,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         addMessage(
           "assistant",
           result.additional === 0
-            ? "Based on the numbers you confirmed, your selected resources cover the needs in this estimate. The breakdown is below; we can still explore policy tradeoffs and changes in your plans."
+            ? "Based on the numbers you confirmed, your selected resources cover the needs in this estimate. Open your coverage picture in Key details for the breakdown. We can still explore policy tradeoffs and changes in your plans."
             : `Your planning estimate is ${currency(result.additional)} in additional coverage: ${currency(result.totalNeeds)} of needs minus ${currency(result.totalResources)} already in place. For support lasting ${confirmed.profile.years} years, term coverage is one option to explore; whole life may be relevant to lifelong goals. This guided estimate cannot decide policy suitability, and actual costs depend on the policy.`,
         );
       } else {
@@ -372,7 +412,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
     if ((liveActive || liveEnabled) && !example) live.current?.send(text);
     else guidedAnswer(text);
   }
-  async function startLive(voice: boolean) {
+  async function startLive(voice: boolean, trigger?: HTMLButtonElement) {
     if (!liveEnabled) {
       setError(
         "Live conversation isn’t connected in this preview. You can answer the guided questions by typing.",
@@ -385,7 +425,23 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
       );
       return false;
     }
+    const bounds =
+      voice && !voiceVisible ? trigger?.getBoundingClientRect() : null;
+    setVoiceOrigin(
+      bounds
+        ? {
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+            iconWidth:
+              trigger?.querySelector("svg")?.getBoundingClientRect().width ??
+              28,
+          }
+        : null,
+    );
     setError("");
+    setFinished(false);
     setPaused(false);
     setMicrophoneMuted(false);
     setVoiceMode(voice);
@@ -405,7 +461,15 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
   function exitVoice() {
     stopLive();
     setVoiceVisible(false);
+    setVoiceOrigin(null);
     requestAnimationFrame(() => input.current?.focus());
+  }
+  function finishConversation() {
+    stopLive();
+    setVoiceVisible(false);
+    setVoiceOrigin(null);
+    setFinished(true);
+    setSummaryOpen(true);
   }
   function toggleMicrophone() {
     const next = !microphoneMuted;
@@ -420,25 +484,68 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
       </header>
       <main id="main" className="assessment-layout">
         <aside className="situation-panel">
-          <details className="situation-details" open ref={situation}>
-            <summary>
-              <span>
-                <Users size={17} /> Key details
-              </span>
-              <ChevronDown size={16} />
-            </summary>
+          <section
+            className="situation-details"
+            aria-labelledby="key-details-title"
+          >
+            <h2 className="situation-heading" id="key-details-title">
+              <Users size={17} /> Key details
+            </h2>
             <KeyHighlights
               state={state}
               example={example}
               processing={status === "thinking"}
-              onOpen={setInsight}
+              onOpen={(focus) => {
+                setInsightSection(undefined);
+                setInsight(focus);
+              }}
             />
-          </details>
+            {messages.length > 0 && (
+              <div className="sidebar-summary-action">
+                <button
+                  className={
+                    buildSummary(state).confirmed
+                      ? "btn btn-primary"
+                      : "btn btn-secondary"
+                  }
+                  disabled={status === "connecting" || status === "thinking"}
+                  onClick={
+                    finished ? () => setSummaryOpen(true) : finishConversation
+                  }
+                >
+                  <FileText size={16} />{" "}
+                  {finished
+                    ? "View my summary"
+                    : buildSummary(state).confirmed
+                      ? "Finish & view summary"
+                      : "Finish & view progress"}
+                </button>
+              </div>
+            )}
+          </section>
         </aside>
         <section className="chat-panel" aria-labelledby="chat-title">
           <h1 id="chat-title" className="sr-only">
             Conversation with Linc
           </h1>
+          <div
+            className={
+              "welcome-scene" +
+              (messages.length === 0 && !voiceVisible ? " is-visible" : "")
+            }
+            aria-hidden="true"
+          >
+            <Image
+              className="welcome-landscape"
+              src="/illustrations/welcome-landscape.png"
+              alt=""
+              width={2172}
+              height={724}
+              sizes="(max-width: 760px) 100vw, (max-width: 1050px) 70vw, 80vw"
+              priority
+              draggable={false}
+            />
+          </div>
           <div
             className={
               "chat-transcript" +
@@ -447,62 +554,74 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
             ref={transcript}
           >
             <div className="conversation-content">
-              {messages.length === 0 ? (
-                voiceVisible ? null : (
-                  <div className="welcome">
-                    <div className="welcome-emblem" aria-hidden="true">
-                      <LincAvatar />
-                    </div>
-                    <Button
-                      className="btn btn-primary"
-                      disabled={status === "connecting"}
-                      onClick={() => startLive(true)}
-                    >
-                      <Mic size={17} /> Start voice conversation
-                    </Button>
-                  </div>
-                )
-              ) : (
-                <div
-                  className="messages"
-                  role="log"
-                  aria-label="Conversation"
-                  aria-live="polite"
-                >
-                  {messages.map((message) => (
-                    <div key={message.id} className={"message " + message.role}>
-                      {message.role === "assistant" && <LincAvatar />}
-                      <div className="message-bubble">
-                        <span className="sr-only">
-                          {message.role === "assistant" ? "Linc: " : "You: "}
-                        </span>
-                        {message.role === "assistant" ? (
-                          <AssistantReply text={message.text} />
+              <div ref={messageFlow}>
+                {messages.length === 0 ? (
+                  voiceVisible ? null : (
+                    <div className="welcome">
+                      <button
+                        type="button"
+                        className="welcome-microphone"
+                        disabled={status === "connecting"}
+                        aria-busy={status === "connecting"}
+                        aria-label={
+                          status === "connecting"
+                            ? "Connecting to Linc"
+                            : "Start voice conversation"
+                        }
+                        onClick={(event) =>
+                          void startLive(true, event.currentTarget)
+                        }
+                      >
+                        {status === "connecting" ? (
+                          <LoaderCircle
+                            size={44}
+                            className="spin"
+                            aria-hidden="true"
+                          />
                         ) : (
-                          <p>{message.text}</p>
+                          <Mic size={44} strokeWidth={1.7} aria-hidden="true" />
                         )}
-                      </div>
+                      </button>
+                      <p className="welcome-prompt">
+                        Ask Linc about life insurance
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-              {status === "thinking" &&
-                messages.at(-1)?.role !== "assistant" && (
-                  <div className="assistant-working">
-                    <LincAvatar />
-                    <ThinkingIndicator />
+                  )
+                ) : (
+                  <div
+                    className="messages"
+                    role="log"
+                    aria-label="Conversation"
+                    aria-live="polite"
+                  >
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={"message " + message.role}
+                      >
+                        {message.role === "assistant" && <LincAvatar />}
+                        <div className="message-bubble">
+                          <span className="sr-only">
+                            {message.role === "assistant" ? "Linc: " : "You: "}
+                          </span>
+                          {message.role === "assistant" ? (
+                            <AssistantReply text={message.text} />
+                          ) : (
+                            <p>{message.text}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-              {isConfirmed && (
-                <CoverageResult
-                  key={state.revision}
-                  profile={state.profile}
-                  example={example}
-                  onLearn={() => setInsight("support")}
-                  onScenario={setActiveScenario}
-                  externalScenario={activeScenario}
-                />
-              )}
+                {status === "thinking" &&
+                  messages.at(-1)?.role !== "assistant" && (
+                    <div className="assistant-working">
+                      <LincAvatar />
+                      <ThinkingIndicator />
+                    </div>
+                  )}
+              </div>
             </div>
           </div>
           <div
@@ -512,6 +631,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
           >
             {voiceVisible ? (
               <VoiceComposer
+                origin={voiceOrigin}
                 status={status}
                 muted={microphoneMuted}
                 words={livePartial}
@@ -555,7 +675,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                           <Pause size={14} /> Pause
                         </button>
                       )}
-                      <button type="button" onClick={() => stopLive()}>
+                      <button type="button" onClick={finishConversation}>
                         <Square size={12} /> End
                       </button>
                     </div>
@@ -570,14 +690,27 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                       >
                         <Play size={14} /> Resume conversation
                       </button>
-                      <button type="button" onClick={() => stopLive()}>
+                      <button type="button" onClick={finishConversation}>
                         <Square size={12} /> End
                       </button>
                     </div>
                   </div>
+                ) : finished ? (
+                  <div className="live-controls">
+                    <span>
+                      Conversation finished. Your details are still here.
+                    </span>
+                    <button
+                      className="text-link"
+                      onClick={() => setSummaryOpen(true)}
+                    >
+                      View summary
+                    </button>
+                  </div>
                 ) : null}
                 <form
                   className="composer"
+                  autoComplete="off"
                   onSubmit={(e) => {
                     e.preventDefault();
                     void send();
@@ -587,6 +720,7 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                     ref={input}
                     id="message-input"
                     aria-label="Your message"
+                    autoComplete="off"
                     value={draft}
                     maxLength={1000}
                     onChange={(e) => setDraft(e.target.value)}
@@ -596,7 +730,9 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
                   <button
                     type="button"
                     className="mic-button"
-                    onClick={() => startLive(true)}
+                    onClick={(event) =>
+                      void startLive(true, event.currentTarget)
+                    }
                     disabled={status === "connecting"}
                     aria-label="Start voice conversation"
                     title="Talk to Linc"
@@ -625,10 +761,22 @@ export function Assessment({ liveEnabled }: { liveEnabled: boolean }) {
         <InsightView
           state={state}
           initialFocus={insight}
+          initialSection={insightSection}
+          scenario={activeScenario}
+          onScenario={setActiveScenario}
           example={example}
           onClose={() => setInsight(null)}
           onContinue={() => {
             setInsight(null);
+            requestAnimationFrame(() => input.current?.focus());
+          }}
+        />
+      )}
+      {summaryOpen && (
+        <SummaryReport
+          state={state}
+          onClose={() => {
+            setSummaryOpen(false);
             requestAnimationFrame(() => input.current?.focus());
           }}
         />

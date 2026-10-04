@@ -13,6 +13,7 @@ export interface Highlight {
   title: string;
   value: string;
   detail: string;
+  pending?: string[];
 }
 const goalFields = [
   "mortgage",
@@ -92,26 +93,43 @@ export function getHighlights(state: ProfileState): Highlight[] {
     });
   }
   const goals = goalFields.filter((key) => p[key] !== null && p[key]! > 0);
-  if (goals.length)
+  const goalPending = goalFields
+    .filter((key) => state.clarifications?.[key])
+    .map(
+      (key) =>
+        `${goalLabels[goalFields.indexOf(key)]}: ${state.clarifications![key]}`,
+    );
+  if (goals.length || goalPending.length)
     highlights.push({
       key: "goals",
       title: "Future commitments",
-      value: currency(goals.reduce((sum, key) => sum + p[key]!, 0)),
+      value: goals.length
+        ? currency(goals.reduce((sum, key) => sum + p[key]!, 0))
+        : "Needs clarification",
       detail: goals
         .map((key) => goalLabels[goalFields.indexOf(key)])
         .join(" · "),
+      pending: goalPending,
     });
   const resources = resourceFields.filter(
     (key) => p[key] !== null && p[key]! > 0,
   );
-  if (resources.length)
+  const resourcePending = resourceFields
+    .filter((key) => state.clarifications?.[key])
+    .map(
+      (key) => `${resourceLabels[resourceFields.indexOf(key)]}: amount unknown`,
+    );
+  if (resources.length || resourcePending.length)
     highlights.push({
       key: "resources",
       title: "Already in place",
-      value: currency(resources.reduce((sum, key) => sum + p[key]!, 0)),
+      value: resources.length
+        ? currency(resources.reduce((sum, key) => sum + p[key]!, 0))
+        : "Amount unknown",
       detail: resources
         .map((key) => resourceLabels[resourceFields.indexOf(key)])
         .join(" · "),
+      pending: resourcePending,
     });
   if (state.confirmedRevision === state.revision)
     highlights.push({

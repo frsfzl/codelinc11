@@ -217,11 +217,14 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                 opening_message: opening,
               },
               onConversationCreated(conversation) {
+                // Voice mode accepts microphone input, but Linc replies in text.
+                // Mute output before the connected session can play its greeting.
+                if (conversation.type === "voice")
+                  conversation.setVolume({ volume: 0 });
                 if (active()) session.current = conversation;
                 else {
                   if (conversation.type === "voice") {
                     conversation.setMicMuted(true);
-                    conversation.setVolume({ volume: 0 });
                   }
                   void conversation.endSession().catch(() => {});
                 }
@@ -257,7 +260,8 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                 );
               },
               onModeChange({ mode }) {
-                if (active() && voice) latest.current.onStatus(mode);
+                if (active() && voice && mode === "listening")
+                  latest.current.onStatus("listening");
               },
               onAgentTyping(event) {
                 if (!active()) return;
@@ -292,7 +296,7 @@ const LiveConversation = forwardRef<LiveHandle, Props>(
                   event.message,
                 );
                 if (user) latest.current.onStatus("thinking");
-                else if (!voice) latest.current.onStatus("connected");
+                else latest.current.onStatus(voice ? "listening" : "connected");
               },
             });
             const canceled = new Promise<never>((_, reject) => {

@@ -1,10 +1,4 @@
-import {
-  currency,
-  fieldInfo,
-  missingFields,
-  requiredKeys,
-  type ProfileState,
-} from "./needs";
+import { currency, fieldInfo, missingFields, type ProfileState } from "./needs";
 
 export interface ConversationReview {
   revision: number;
@@ -25,14 +19,32 @@ export function prepareReview(
       `Keep asking questions in conversation. Still needed: ${[!state.profile.dependents.trim() ? "people or purpose" : "", ...missing.map((key) => fieldInfo[key].label)].filter(Boolean).join(", ")}. Never assume missing amounts are zero.`,
     );
   const p = state.profile;
-  const numbers = requiredKeys.map(
-    (key) =>
-      `${fieldInfo[key].label}: ${key === "years" ? `${p[key]} years` : `${currency(p[key]!)}${key === "annualSupport" ? " per year" : ""}`}.`,
-  );
+  const recapFields = [
+    ["mortgage", "Mortgage"],
+    ["debts", "Other debts"],
+    ["education", "Education"],
+    ["finalExpenses", "Final expenses"],
+    ["otherNeeds", "Other goals"],
+    ["employerCoverage", "Employer coverage"],
+    ["personalCoverage", "Personal coverage"],
+    ["savings", "Allocated savings"],
+  ] as const;
+  const amounts = recapFields
+    .filter(([key]) => p[key] !== 0)
+    .map(([key, label]) => `${label}: ${currency(p[key]!)}`);
+  const excluded = recapFields
+    .filter(([key]) => p[key] === 0)
+    .map(([, label]) => label.toLowerCase());
+  const summary = [
+    `Family support: ${currency(p.annualSupport!)} a year for ${p.years} years.`,
+    ...(amounts.length ? [`${amounts.join("; ")}.`] : []),
+    ...(excluded.length ? [`Excluded ($0): ${excluded.join(", ")}.`] : []),
+    "Is that correct?",
+  ].join("\n");
   return {
     revision: state.revision,
     afterUserMessage: userMessage,
-    summary: `Here’s what I’ve heard: ${p.dependents}\n${numbers.join("\n")}${p.income === null ? "" : `\nIncome for context: ${currency(p.income)} per year.`}${p.budget === null ? "" : `\nComfortable budget: ${currency(p.budget)} per month.`}${p.priorities ? `\nPriorities: ${p.priorities}` : ""}\nDoes that sound right, or would you like to change anything?`,
+    summary,
   };
 }
 

@@ -20,7 +20,8 @@ export function ThinkingIndicator() {
   );
 }
 
-export function AssistantReply({ text }: { text: string }) {
+export function AssistantReply({ text: response }: { text: string }) {
+  const text = response.replace(/\s*\u2014\s*/g, ", ");
   const [visibleText, setVisibleText] = useState("");
 
   useEffect(() => {

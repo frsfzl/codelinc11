@@ -24,7 +24,7 @@
         },
         "patch": {
           "type": "string",
-          "description": "JSON object string. Allowed keys: dependents (string), income, annualSupport, years, mortgage, debts, education, finalExpenses, otherNeeds, employerCoverage, personalCoverage, savings, budget (number or null), priorities (string). Unknown is null; explicit exclusions are 0. years must be a whole number 1-60. No other keys."
+          "description": "JSON object string. Allowed keys: dependents and priorities (strings); income, annualSupport, years, mortgage, debts, education, finalExpenses, otherNeeds, employerCoverage, personalCoverage, savings, budget (number or null); educationPlan (object or null). educationPlan fields: annualAmount (number/null), years (integer 1-60/null), scope (combined/per-person/unknown), people (integer 1-30/null). Send partial educationPlan updates as answers arrive. The app calculates education from this basis; never infer years or people. Unknown is null, never zero. Clear educationPlan only for an explicitly stated one-time education total. Main years is support duration 1-60."
         }
       },
       "required": ["expectedRevision", "patch"]
@@ -33,7 +33,7 @@
   {
     "type": "client",
     "name": "review_profile",
-    "description": "Once all required inputs are captured, obtain the exact current recap. Present it naturally in conversation and ask if it is right. Wait for a NEW user reply before calculate_needs. There is no form. Corrections require another update and recap.",
+    "description": "Once all required inputs are captured, obtain a compact recap. Preserve all calculation amounts and group $0 exclusions. Do not repeat optional context. Ask Is that correct? and wait for a NEW reply before calculate_needs. No forms. Corrections require an updated recap.",
     "expects_response": true,
     "parameters": {
       "type": "object",
@@ -49,7 +49,7 @@
   {
     "type": "client",
     "name": "calculate_needs",
-    "description": "Calculate after the customer confirms the current review_profile recap in conversation. Supply their exact latest affirmative reply in confirmationQuote. Already confirmed revisions do not need another quote. Returns exact math and displays the result automatically.",
+    "description": "Calculate after confirmation of the current review_profile recap. Supply the exact latest affirmative reply in confirmationQuote; already confirmed revisions need no new quote. Returns exact math. Explain it in one paragraph, 3 short sentences, at most 65 words, with one relevant policy tradeoff.",
     "expects_response": true,
     "parameters": {
       "type": "object",
