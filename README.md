@@ -57,3 +57,14 @@ Educational estimates only, not policy quotes. Inflation, investment returns, ta
 Next.js · React · TypeScript · ElevenLabs Agents & Scribe · AWS Amplify · Secrets Manager
 
 Pushes to `main` deploy automatically. The production API key stays in Secrets Manager. See the [AWS deployment guide](docs/aws-deployment.md) and [demo checklist](docs/demo-checklist.md).
+
+## Crucible / offline evaluation
+
+Choose **DOCKERFILE**, path **`Dockerfile`**, when submitting. Dependencies, fonts, and the app are built into the image; startup runs the prebuilt server as a non-root user on port 3000. It does not install packages or require internet access. Cache and temporary files stay inside `/app`.
+
+```sh
+docker build -t linc .
+docker run --rm -p 3000:3000 linc
+```
+
+Without provider credentials, type answers to the guided questions, confirm your details, then explore the coverage math, what-if scenarios, and final report. Live AI and microphone transcription require internet access and ElevenLabs credentials; use the hosted demo for those features. Local secrets are excluded from the image.

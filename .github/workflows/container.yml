@@ -1,0 +1,75 @@
+name: Offline container build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/container.yml
+      - next.config.ts
+      - package.json
+      - package-lock.json
+      - src/**
+      - public/**
+
+permissions:
+  contents: read
+
+jobs:
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build production image
+        run: docker build --tag linc:verification .
+      - name: Start with no network and a read-only filesystem
+        run: |
+          docker run --detach --name linc-offline \
+            --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --tmpfs /app/.runtime:rw,noexec,nosuid,size=16m,uid=1000,gid=1000 \
+            --tmpfs /app/.next/cache:rw,noexec,nosuid,size=32m,uid=1000,gid=1000 \
+            linc:verification
+      - name: Confirm the offline server serves the application
+        run: |
+          docker exec -i linc-offline node --input-type=module <<'NODE'
+          if (process.getuid() === 0) throw new Error("Server must run as a non-root user");
+          const base = "http://127.0.0.1:3000";
+          let ready = false;
+          for (let attempt = 0; attempt < 30; attempt++) {
+            try {
+              ready = (await fetch(base, { signal: AbortSignal.timeout(2000) })).ok;
+            } catch {}
+            if (ready) break;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          if (!ready) throw new Error("Offline server did not start");
+          const assetPaths = new Set(["/", "/conversation", "/brand/lincoln-financial.png"]);
+          const page = await (await fetch(base + "/conversation")).text();
+          for (const match of page.matchAll(/(?:src|href)="(\/_next\/static\/[^"?]+(?:\?[^" ]*)?)"/g)) {
+            assetPaths.add(match[1].replaceAll("&amp;", "&"));
+          }
+          for (const path of assetPaths) {
+            const response = await fetch(base + path, { signal: AbortSignal.timeout(5000) });
+            if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+            await response.arrayBuffer();
+            console.log(`HTTP ${response.status}: ${path}`);
+          }
+          const session = await fetch(base + "/api/conversation", {
+            method: "POST",
+            headers: { origin: base },
+            signal: AbortSignal.timeout(5000),
+          });
+          if (session.status !== 503 || !(await session.text()).includes("not configured")) {
+            throw new Error("Credential-free runtime should offer guided mode without contacting a provider");
+          }
+          console.log("Offline startup confirmed; pages and bundled assets are available as a non-root user.");
+          NODE
+      - name: Show server logs
+        if: always()
+        run: docker logs linc-offline 2>/dev/null || true
